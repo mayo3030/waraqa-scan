@@ -24,14 +24,14 @@ jobs:
       # Set the repository variable RELEASES_REPO (owner/name) and the secret RELEASES_TOKEN.
       RELEASES_REPO: ${{ vars.RELEASES_REPO != '' && vars.RELEASES_REPO || github.repository }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
@@ -65,7 +65,7 @@ jobs:
           ./gradlew --no-daemon assembleRelease -PappVersionCode=$VERSION_CODE -PappVersionName=$VERSION_NAME
           cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/waraqa-scan-$VERSION_NAME.apk"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: waraqa-scan-${{ env.VERSION_NAME }}
           path: waraqa-scan-${{ env.VERSION_NAME }}.apk

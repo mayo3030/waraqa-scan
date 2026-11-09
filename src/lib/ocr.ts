@@ -1,4 +1,5 @@
 // Text extraction with Tesseract.js, served from the app's own files.
+import { Capacitor } from "@capacitor/core";
 import { createWorker, OEM, PSM, type Worker } from "tesseract.js";
 import { assetUrl } from "./cvload";
 import { fixVins } from "./vin";
@@ -21,7 +22,9 @@ function getWorker(lang: OcrLang) {
     corePath: assetUrl("vendor/tesseract/core"),
     langPath: assetUrl("vendor/tesseract/lang"),
     workerBlobURL: false,
-    gzip: true,
+    // Android's build unpacks .gz assets (eng.traineddata.gz -> eng.traineddata),
+    // so the app reads plain files there and gzipped files on the web.
+    gzip: !Capacitor.isNativePlatform(),
     logger: (m: { status: string; progress: number }) => onProgress(m),
   });
   current = { lang, worker };
