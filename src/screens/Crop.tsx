@@ -3,8 +3,7 @@ import * as I from "../icons";
 import type { Session } from "../App";
 import { fullQuad, isConvex, orderQuad, type Pt, type Quad } from "../lib/geometry";
 import { rasterToCanvas } from "../lib/io";
-import { loadOpenCV } from "../lib/cvload";
-import { detectPage } from "../lib/detect";
+import { detectAsync } from "../lib/engine";
 
 interface Props {
   s: Session;
@@ -101,8 +100,7 @@ export function CropScreen({ s, onCancel, onNext }: Props) {
   const auto = async () => {
     setNote("Looking for the page…");
     try {
-      const cv = await loadOpenCV();
-      const d = detectPage(cv, s.src);
+      const d = await detectAsync(s.src);
       setQuad(d.quad);
       setFound(d.found);
       setNote(d.found ? null : "No clear page edge found. Drag the corners to the page.");

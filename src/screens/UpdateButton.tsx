@@ -8,7 +8,7 @@ type State =
   | { k: "result"; c: Check }
   | { k: "error"; msg: string }
   | { k: "downloading"; f: number }
-  | { k: "permission" };
+  | { k: "permission"; url: string };
 
 // "Check for updates" in the top bar of the Android app.
 export function UpdateButton() {
@@ -42,7 +42,7 @@ export function UpdateButton() {
     setSt({ k: "downloading", f: 0 });
     try {
       const r = await installUpdate(url, (f) => setSt({ k: "downloading", f }));
-      if (r === "needs-permission") setSt({ k: "permission" });
+      if (r === "needs-permission") setSt({ k: "permission", url });
       else setOpen(false);
     } catch (e) {
       setSt({ k: "error", msg: e instanceof Error ? e.message : String(e) });
@@ -96,7 +96,7 @@ export function UpdateButton() {
             {st.k === "permission" && (
               <>
                 <p className="muted">Android needs your OK once to install updates from Waraqa. Turn on “Allow from this source”, come back, and tap below.</p>
-                <button className="btn btn-primary" onClick={check}>Check again</button>
+                <button className="btn btn-primary" onClick={() => install(st.url)}>Download and install</button>
               </>
             )}
           </div>

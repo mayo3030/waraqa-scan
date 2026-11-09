@@ -131,9 +131,9 @@ export function DocView({ id, rev, notify, onBack, onPhotos, onEditPage, onChang
       let parts: string[] | null;
       try {
         parts = await recognize(imgs, lang, onP);
-      } catch {
+      } catch (err) {
         parts = await recognizeWithClaude(imgs, lang, onP);
-        if (!parts) throw new Error("no reader");
+        if (!parts) throw err instanceof Error ? err : new Error("Text reading could not start in this view");
       }
       const joined = parts.map((t, i) => (parts.length > 1 ? `— Page ${i + 1} —\n${t}` : t)).join("\n\n");
       setText(joined);
@@ -141,8 +141,8 @@ export function DocView({ id, rev, notify, onBack, onPhotos, onEditPage, onChang
       await putDoc(d);
       setDoc(d);
       onChanged();
-    } catch {
-      notify({ text: "Text reading could not start in this view", tone: "error" });
+    } catch (e) {
+      notify({ text: e instanceof Error ? e.message : "Text reading could not start in this view", tone: "error" });
     } finally {
       setOcr(null);
     }

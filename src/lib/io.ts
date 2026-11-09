@@ -1,22 +1,57 @@
 // Browser image helpers: files <-> rasters <-> blobs.
 import type { Raster } from "./geometry";
+import { withTimeout } from "./timeout";
+
+function imageSize(img: CanvasImageSource): { w: number; h: number } {
+  if (img instanceof HTMLImageElement) return { w: img.naturalWidth, h: img.naturalHeight };
+  const sized = img as { width?: number; height?: number };
+  return { w: sized.width ?? 0, h: sized.height ?? 0 };
+}
+
+// createImageBitmap never settles on some Android WebViews (the scan screen
+// then stays on "Finding the page edges"). An <img> decode is the fallback.
+async function decodeImage(blob: Blob): Promise<{ img: CanvasImageSource; url?: string }> {
+  if (typeof createImageBitmap === "function") {
+    try {
+      const img = await withTimeout(
+        createImageBitmap(blob, { imageOrientation: "from-image" }).catch(() => createImageBitmap(blob)),
+        8000,
+        "Photo took too long to open",
+      );
+      return { img };
+    } catch { /* try the image element */ }
+  }
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = await withTimeout(new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("That file could not be opened as a photo"));
+      el.src = url;
+    }), 15000, "Photo took too long to open");
+    return { img, url };
+  } catch (e) {
+    URL.revokeObjectURL(url);
+    throw e;
+  }
+}
 
 export async function blobToRaster(blob: Blob, maxSide = 2400): Promise<Raster> {
-  let bmp: ImageBitmap;
+  const decoded = await decodeImage(blob);
   try {
-    bmp = await createImageBitmap(blob, { imageOrientation: "from-image" });
-  } catch {
-    bmp = await createImageBitmap(blob);
+    const size = imageSize(decoded.img);
+    const s = Math.min(1, maxSide / Math.max(size.w, size.h));
+    const w = Math.max(1, Math.round(size.w * s)), h = Math.max(1, Math.round(size.h * s));
+    const c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const ctx = c.getContext("2d", { willReadFrequently: true })!;
+    ctx.drawImage(decoded.img, 0, 0, w, h);
+    if ("close" in decoded.img && typeof decoded.img.close === "function") decoded.img.close();
+    const id = ctx.getImageData(0, 0, w, h);
+    return { width: w, height: h, data: id.data };
+  } finally {
+    if (decoded.url) URL.revokeObjectURL(decoded.url);
   }
-  const s = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
-  const w = Math.max(1, Math.round(bmp.width * s)), h = Math.max(1, Math.round(bmp.height * s));
-  const c = document.createElement("canvas");
-  c.width = w; c.height = h;
-  const ctx = c.getContext("2d", { willReadFrequently: true })!;
-  ctx.drawImage(bmp, 0, 0, w, h);
-  bmp.close?.();
-  const id = ctx.getImageData(0, 0, w, h);
-  return { width: w, height: h, data: id.data };
 }
 
 export function rasterToCanvas(r: Raster, canvas?: HTMLCanvasElement) {
