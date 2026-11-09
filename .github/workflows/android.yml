@@ -81,3 +81,19 @@ jobs:
             --repo "$RELEASES_REPO" $TARGET \
             --title "Waraqa Scan $VERSION_NAME" \
             --notes "${COMMIT_MSG:-New build}"
+
+      # Optional: also put every new .apk in Google Drive.
+      # Needs the secret RCLONE_CONF (an rclone config with a remote named "gdrive").
+      # Folder name: repository variable DRIVE_FOLDER, default "Waraqa Scan Updates".
+      - name: Upload to Google Drive
+        env:
+          RCLONE_CONF: ${{ secrets.RCLONE_CONF }}
+          DRIVE_FOLDER: ${{ vars.DRIVE_FOLDER != '' && vars.DRIVE_FOLDER || 'Waraqa Scan Updates' }}
+        if: env.RCLONE_CONF != ''
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq rclone > /dev/null
+          mkdir -p ~/.config/rclone
+          printf '%s\n' "$RCLONE_CONF" > ~/.config/rclone/rclone.conf
+          rclone copyto "waraqa-scan-$VERSION_NAME.apk" "gdrive:$DRIVE_FOLDER/waraqa-scan-$VERSION_NAME.apk"
+          rclone copyto "waraqa-scan-$VERSION_NAME.apk" "gdrive:$DRIVE_FOLDER/waraqa-scan-latest.apk"
+          rclone lsl "gdrive:$DRIVE_FOLDER" | tail -5

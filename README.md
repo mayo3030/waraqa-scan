@@ -47,6 +47,10 @@ The `android/` folder is a Capacitor 8 wrapper around the same web app (app id `
 - **Private source repo:** the update button needs releases anyone can download. If this repo is
   private, make a public repo for the builds only, then set the repository variable `RELEASES_REPO`
   (owner/name) and a `RELEASES_TOKEN` secret that can create releases there.
+- **Google Drive copy (optional):** add the secret `RCLONE_CONF` holding an rclone config with a
+  Google Drive remote named `gdrive`. Each build then also lands in Drive in the folder
+  "Waraqa Scan Updates" (change it with the repository variable `DRIVE_FOLDER`), as
+  `waraqa-scan-<version>.apk` plus `waraqa-scan-latest.apk`.
 - **Build on your computer:** `npm run apk` (needs Android Studio / the Android SDK and JDK 21).
 
 ## Tests
