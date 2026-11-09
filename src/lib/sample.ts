@@ -2,7 +2,7 @@
 // screens show what a scan looks like. It is labeled as a sample.
 import { blobToRaster, rasterThumb, rasterToBlob } from "./io";
 import { assetUrl } from "./cvload";
-import { flatten, finish } from "./pipeline";
+import { finishAsync, flattenAsync } from "./engine";
 import { listDocs, newId, putDoc, savePage } from "./store";
 import { NO_ADJUST } from "./filters";
 import type { Quad } from "./geometry";
@@ -20,8 +20,8 @@ export async function seedSample(): Promise<boolean> {
   if (!res.ok) return false;
   const original = await res.blob();
   const src = await blobToRaster(original);
-  const flat = flatten(src, SAMPLE_QUAD, 0);
-  const out = finish(flat, "enhance", NO_ADJUST);
+  const flat = await flattenAsync(src, SAMPLE_QUAD, 0);
+  const out = await finishAsync(flat, "enhance", NO_ADJUST);
   const docId = newId(), pageId = newId();
   const now = Date.now();
   await putDoc({ id: docId, name: "Sample: bill of sale", createdAt: now, updatedAt: now, pageIds: [], sample: true });

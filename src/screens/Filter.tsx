@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as I from "../icons";
 import type { Session, Toast } from "../App";
 import { FILTERS, NO_ADJUST, type Adjust, type FilterKind } from "../lib/filters";
-import { flatten, finish } from "../lib/pipeline";
+import { finish } from "../lib/pipeline";
+import { finishAsync, flattenAsync } from "../lib/engine";
 import { rasterThumb, rasterToBlob, rasterToCanvas, shrink } from "../lib/io";
 import { defaultName, newId, putDoc, savePage } from "../lib/store";
 import type { Raster } from "../lib/geometry";
@@ -19,30 +20,44 @@ export function FilterScreen({ s, notify, onBack, onSaved }: Props) {
   const [filter, setFilter] = useState<FilterKind>(s.filter);
   const [adjust, setAdjust] = useState<Adjust>(s.adjust);
   const [saving, setSaving] = useState(false);
+  const [flat, setFlat] = useState<Raster | null>(null);
   const view = useRef<HTMLCanvasElement>(null);
 
-  // Flatten once per rotation; previews work on a smaller copy.
-  const flat = useMemo(() => flatten(s.src, s.quad, rotation), [s.src, s.quad, rotation]);
-  const preview = useMemo(() => shrink(flat, 1000), [flat]);
-  const tiny = useMemo(() => shrink(flat, 150), [flat]);
-  const swatches = useMemo(
-    () => Object.fromEntries(FILTERS.map((f) => [f.id, rasterThumb(finish(tiny, f.id, NO_ADJUST), 150)])),
-    [tiny],
-  );
+  // Flattening a full photo on the UI thread freezes the phone, so it runs
+  // in the background. Previews stay on a smaller copy.
+  useEffect(() => {
+    let cancel = false;
+    setFlat(null);
+    flattenAsync(s.src, s.quad, rotation)
+      .then((r) => { if (!cancel) setFlat(r); })
+      .catch(() => { if (!cancel) notify({ text: "The page could not be prepared", tone: "error" }); });
+    return () => { cancel = true; };
+  }, [s.src, s.quad, rotation, notify]);
+
+  const preview = useMemo(() => (flat ? shrink(flat, 1000) : null), [flat]);
+  const swatches = useMemo(() => {
+    if (!flat) return {} as Record<string, string>;
+    const tiny = shrink(flat, 150);
+    return Object.fromEntries(FILTERS.map((f) => [f.id, rasterThumb(finish(tiny, f.id, NO_ADJUST), 150)]));
+  }, [flat]);
 
   useEffect(() => {
+    if (!preview) return;
+    let cancel = false;
     const t = setTimeout(() => {
-      if (view.current) rasterToCanvas(finish(preview, filter, adjust), view.current);
+      if (cancel || !view.current) return;
+      rasterToCanvas(finish(preview, filter, adjust), view.current);
     }, 40);
-    return () => clearTimeout(t);
+    return () => { cancel = true; clearTimeout(t); };
   }, [preview, filter, adjust]);
 
   const save = async () => {
+    if (!flat) return;
     setSaving(true);
     // let the button state paint before the heavy work
     await new Promise((r) => setTimeout(r, 30));
     try {
-      const out: Raster = finish(flat, filter, adjust);
+      const out: Raster = await finishAsync(flat, filter, adjust);
       const result = await rasterToBlob(out);
       let docId = s.docId;
       if (!docId) {
@@ -98,7 +113,7 @@ export function FilterScreen({ s, notify, onBack, onSaved }: Props) {
         <span className="bar-step mono">2 / 2</span>
       </header>
       <div className="filter-stage">
-        <canvas ref={view} className="sheet" />
+        {flat ? <canvas ref={view} className="sheet" /> : <p className="stage-wait">Preparing the page…</p>}
       </div>
       <div className="filter-panel">
         <div className="swatches" role="radiogroup" aria-label="Filter">
@@ -111,7 +126,7 @@ export function FilterScreen({ s, notify, onBack, onSaved }: Props) {
               onClick={() => setFilter(f.id)}
               title={f.hint}
             >
-              <img src={swatches[f.id]} alt="" />
+              {swatches[f.id] ? <img src={swatches[f.id]} alt="" /> : <span className="swatch-ph" />}
               <span>{f.label}</span>
             </button>
           ))}
@@ -128,7 +143,7 @@ export function FilterScreen({ s, notify, onBack, onSaved }: Props) {
             <button className="tool" onClick={() => setAdjust(NO_ADJUST)}><span>Reset</span></button>
           )}
         </div>
-        <button className="btn btn-primary" onClick={save} disabled={saving}>
+        <button className="btn btn-primary" onClick={save} disabled={saving || !flat}>
           {saving ? "Saving…" : s.page ? "Update page" : s.queue.length ? "Save, next photo" : "Save page"}
         </button>
       </footer>

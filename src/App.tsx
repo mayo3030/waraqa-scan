@@ -4,16 +4,12 @@ import { FilterScreen } from "./screens/Filter";
 import { Home } from "./screens/Home";
 import { DocView } from "./screens/DocView";
 import { blobToRaster } from "./lib/io";
-import { loadOpenCV } from "./lib/cvload";
-import { detectPage } from "./lib/detect";
+import { detectAsync } from "./lib/engine";
 import { fullQuad, type Quad, type Raster } from "./lib/geometry";
 import { getPage, type PageRec } from "./lib/store";
 import { NO_ADJUST, type Adjust, type FilterKind } from "./lib/filters";
 import { seedSample } from "./lib/sample";
-
-function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]);
-}
+import { yieldToPaint } from "./lib/timeout";
 
 export interface Session {
   docId?: string; // add to this document (new one when missing)
@@ -62,16 +58,16 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    // The example page is built off the UI thread. OpenCV is not loaded here:
+    // starting it on the page that just opened freezes the phone.
     seedSample().then((made) => made && setRev((r) => r + 1)).catch(() => {});
-    // Warm up the page finder in the background.
-    const t = setTimeout(() => loadOpenCV().catch(() => {}), 1200);
-    return () => clearTimeout(t);
   }, []);
 
   const openPhoto = useCallback(
     async (blobs: Blob[], docId?: string, page?: PageRec) => {
       if (!blobs.length) return;
       setBusy("Finding the page edges");
+      await yieldToPaint();
       try {
         const [first, ...queue] = blobs;
         const src = await blobToRaster(first);
@@ -82,8 +78,7 @@ export function App() {
           autoFound = true;
         } else {
           try {
-            const cv = await withTimeout(loadOpenCV(), 6000);
-            const d = detectPage(cv, src);
+            const d = await detectAsync(src);
             quad = d.quad;
             autoFound = d.found;
           } catch {

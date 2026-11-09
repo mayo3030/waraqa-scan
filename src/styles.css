@@ -216,6 +216,7 @@ label.btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; 
   max-width: 100%; max-height: 100%; width: auto; height: auto;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); background: #fff;
 }
+.stage-wait { color: #eceef8; margin: 0; }
 .filter-panel {
   flex: none; display: grid; gap: 12px;
   padding-block: 12px; padding-left: var(--gutter-l); padding-right: var(--gutter-r);
@@ -226,7 +227,8 @@ label.btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; 
   display: grid; gap: 4px; justify-items: center; padding: 4px 4px 6px;
   border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); font-size: 12.5px;
 }
-.swatch img { width: 100%; aspect-ratio: 3 / 4; max-width: 100%; object-fit: cover; object-position: top; border-radius: 4px; }
+.swatch img, .swatch-ph { width: 100%; aspect-ratio: 3 / 4; max-width: 100%; object-fit: cover; object-position: top; border-radius: 4px; }
+.swatch-ph { display: block; background: var(--bg); }
 .swatch.on { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); font-weight: 600; }
 .sliders { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .slider { display: grid; gap: 2px; font-size: 13px; }

@@ -2,6 +2,8 @@
 import { Capacitor } from "@capacitor/core";
 import { createWorker, OEM, PSM, type Worker } from "tesseract.js";
 import { assetUrl } from "./cvload";
+import { tesseractOptions } from "./ocr-config";
+import { withTimeout } from "./timeout";
 import { fixVins } from "./vin";
 
 export type OcrLang = "eng" | "ara" | "eng+ara";
@@ -17,19 +19,30 @@ let onProgress: (p: { status: string; progress: number }) => void = () => {};
 function getWorker(lang: OcrLang) {
   if (current?.lang === lang) return current.worker;
   current?.worker.then((w) => w.terminate()).catch(() => {});
+  const opt = tesseractOptions(Capacitor.isNativePlatform());
   const worker = createWorker(lang.split("+"), OEM.LSTM_ONLY, {
     workerPath: assetUrl("vendor/tesseract/worker.min.js"),
-    corePath: assetUrl("vendor/tesseract/core"),
+    corePath: assetUrl(opt.corePath),
     langPath: assetUrl("vendor/tesseract/lang"),
     workerBlobURL: false,
-    // Android's build unpacks .gz assets (eng.traineddata.gz -> eng.traineddata),
-    // so the app reads plain files there and gzipped files on the web.
-    gzip: !Capacitor.isNativePlatform(),
+    gzip: opt.gzip,
+    ...(opt.cacheMethod ? { cacheMethod: opt.cacheMethod } : {}),
+    // Tesseract also throws from its message handler when a job fails, which
+    // the app treats as a fatal error on top of the rejected promise.
+    errorHandler: () => {},
     logger: (m: { status: string; progress: number }) => onProgress(m),
   });
   current = { lang, worker };
-  worker.catch(() => { current = null; });
+  worker.catch(() => { if (current?.worker === worker) current = null; });
   return worker;
+}
+
+const START_MS = 60000;
+const PAGE_MS = 120000;
+
+function giveUp(pending: Promise<Worker>) {
+  if (current?.worker === pending) current = null;
+  pending.then((w) => w.terminate()).catch(() => {});
 }
 
 export async function recognize(
@@ -37,24 +50,36 @@ export async function recognize(
   lang: OcrLang,
   progress: (label: string, value: number) => void,
 ): Promise<string[]> {
+  const pending = getWorker(lang);
+  let w: Worker;
+  try {
+    w = await withTimeout(pending, START_MS, "Text reading took too long to start");
+  } catch (e) {
+    giveUp(pending);
+    throw e;
+  }
   const texts: string[] = [];
-  for (let i = 0; i < images.length; i++) {
-    const n = images.length;
-    onProgress = (m) => {
-      const step = m.status.startsWith("recognizing") ? m.progress : 0;
-      const label = m.status.startsWith("recognizing")
-        ? `Reading page ${i + 1} of ${n}`
-        : m.status.includes("load") ? "Loading language data" : "Starting";
-      progress(label, (i + step) / n);
-    };
-    const w = await getWorker(lang);
-    // Single column mode keeps large headings that auto mode tends to drop.
-    await w.setParameters({
-      tessedit_pageseg_mode: PSM.SINGLE_COLUMN,
-      preserve_interword_spaces: lang === "eng" ? "0" : "1",
-    });
-    const r = await w.recognize(images[i]);
-    texts.push(fixVins(r.data.text.trim()));
+  try {
+    for (let i = 0; i < images.length; i++) {
+      const n = images.length;
+      onProgress = (m) => {
+        const step = m.status.startsWith("recognizing") ? m.progress : 0;
+        const label = m.status.startsWith("recognizing")
+          ? `Reading page ${i + 1} of ${n}`
+          : m.status.includes("load") ? "Loading language data" : "Starting";
+        progress(label, (i + step) / n);
+      };
+      // Single column mode keeps large headings that auto mode tends to drop.
+      await withTimeout(w.setParameters({
+        tessedit_pageseg_mode: PSM.SINGLE_COLUMN,
+        preserve_interword_spaces: lang === "eng" ? "0" : "1",
+      }), START_MS, "Text reading took too long to start");
+      const r = await withTimeout(w.recognize(images[i]), PAGE_MS, "Text reading took too long");
+      texts.push(fixVins(r.data.text.trim()));
+    }
+  } catch (e) {
+    giveUp(pending);
+    throw e;
   }
   progress("Done", 1);
   return texts;

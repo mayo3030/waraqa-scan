@@ -26,10 +26,11 @@ export function loadOpenCV(): Promise<any> {
     };
     if ((window as any).cv) return void done();
     const s = document.createElement("script");
+    const t = setTimeout(() => reject(new Error("Could not load the page finder")), 30000);
     s.src = assetUrl("vendor/opencv.js");
     s.async = true;
-    s.onload = done;
-    s.onerror = () => reject(new Error("Could not load the page finder"));
+    s.onload = () => { clearTimeout(t); void done(); };
+    s.onerror = () => { clearTimeout(t); reject(new Error("Could not load the page finder")); };
     document.head.appendChild(s);
   });
   loading.catch(() => { loading = null; });
