@@ -1,0 +1,11 @@
+{
+  "appId": "com.mina.waraqa",
+  "appName": "Waraqa Scan",
+  "webDir": "dist",
+  "android": {
+    "backgroundColor": "#f4f5fa"
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

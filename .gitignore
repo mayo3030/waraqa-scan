@@ -1,0 +1,11 @@
+node_modules/
+dist/
+dist-demo/
+public/vendor/opencv.js
+public/vendor/tesseract/
+tests/fixtures/*.rgba
+tests/fixtures/out/
+tests/.build/
+install.log
+*.apk
+android/local.properties

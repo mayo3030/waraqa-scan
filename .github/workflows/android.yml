@@ -1,0 +1,83 @@
+name: Build Android app
+
+# Every push to main builds a signed .apk and publishes it as a GitHub Release.
+# The app's "Check for updates" button reads the newest release.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release
+  cancel-in-progress: false
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      VERSION_CODE: ${{ github.run_number }}
+      VERSION_NAME: 1.0.${{ github.run_number }}
+      # Optional: publish releases to a separate public repo (for a private source repo).
+      # Set the repository variable RELEASES_REPO (owner/name) and the secret RELEASES_TOKEN.
+      RELEASES_REPO: ${{ vars.RELEASES_REPO != '' && vars.RELEASES_REPO || github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install
+        run: npm ci
+
+      - name: Build the web app
+        run: npm run build
+        env:
+          VITE_GH_REPO: ${{ env.RELEASES_REPO }}
+
+      - name: Copy it into the Android project
+        run: npx cap sync android
+
+      - name: Use the release key if one is set
+        env:
+          KEYSTORE_BASE64: ${{ secrets.WARAQA_KEYSTORE_BASE64 }}
+        if: env.KEYSTORE_BASE64 != ''
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          echo "WARAQA_KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+          echo "WARAQA_KEYSTORE_PASSWORD=${{ secrets.WARAQA_KEYSTORE_PASSWORD }}" >> "$GITHUB_ENV"
+          echo "WARAQA_KEY_ALIAS=${{ secrets.WARAQA_KEY_ALIAS }}" >> "$GITHUB_ENV"
+          echo "WARAQA_KEY_PASSWORD=${{ secrets.WARAQA_KEY_PASSWORD }}" >> "$GITHUB_ENV"
+
+      - name: Build the .apk
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease -PappVersionCode=$VERSION_CODE -PappVersionName=$VERSION_NAME
+          cp app/build/outputs/apk/release/app-release.apk "$GITHUB_WORKSPACE/waraqa-scan-$VERSION_NAME.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: waraqa-scan-${{ env.VERSION_NAME }}
+          path: waraqa-scan-${{ env.VERSION_NAME }}.apk
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ vars.RELEASES_REPO != '' && secrets.RELEASES_TOKEN || github.token }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          TARGET=""
+          if [ "$RELEASES_REPO" = "${{ github.repository }}" ]; then TARGET="--target ${{ github.sha }}"; fi
+          gh release create "v$VERSION_NAME" "waraqa-scan-$VERSION_NAME.apk" \
+            --repo "$RELEASES_REPO" $TARGET \
+            --title "Waraqa Scan $VERSION_NAME" \
+            --notes "${COMMIT_MSG:-New build}"
