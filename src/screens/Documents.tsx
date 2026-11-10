@@ -4,14 +4,22 @@ import type { Toast } from "../App";
 import {
   copyPages, deleteDoc, deleteFolder, getDoc, getPages, newDoc, newId, putDoc, putFolder, TAGS, type FolderRec,
 } from "../lib/store";
-import { shortDate, useDocs, type Row } from "./useDocs";
+import { shortDate, stamp, useDocs, type Row } from "./useDocs";
 
 interface Props {
   rev: number;
   notify(t: Toast): void;
   onOpen(id: string): void;
   onChanged(): void;
+  onImages(b: Blob[]): void;
+  onFiles(f: File[]): void;
 }
+
+const pickFiles = (e: React.ChangeEvent<HTMLInputElement>, then: (f: File[]) => void) => {
+  const list = Array.from(e.target.files ?? []);
+  e.target.value = "";
+  if (list.length) then(list);
+};
 
 type Sort = "modified" | "created" | "name";
 type Sheet = null | "folder-new" | "folder-edit" | "move" | "tag" | "delete" | "sort";
@@ -22,7 +30,7 @@ function pref<T extends string>(key: string, def: T): [T, (v: T) => void] {
 }
 
 /** All documents: folders, tags, sort, grid or list, and actions on several at once. */
-export function Documents({ rev, notify, onOpen, onChanged }: Props) {
+export function Documents({ rev, notify, onOpen, onChanged, onImages, onFiles }: Props) {
   const { rows, folders } = useDocs(rev);
   const [folder, setFolder] = useState<string | "all">("all");
   const [tag, setTag] = useState<string | null>(null);
@@ -111,7 +119,7 @@ export function Documents({ rev, notify, onOpen, onChanged }: Props) {
 
   return (
     <>
-      <header className="bar">
+      <header className={sel ? "bar" : "bar bar-search"}>
         {sel ? (
           <>
             <button className="icon-btn" onClick={() => setSel(null)} aria-label="Stop selecting"><I.Close /></button>
@@ -119,43 +127,56 @@ export function Documents({ rev, notify, onOpen, onChanged }: Props) {
             <button className="link-btn" onClick={() => setSel(new Set((shown ?? []).map((r) => r.doc.id)))}>All</button>
           </>
         ) : (
-          <>
-            <h1 className="bar-title">Documents</h1>
+          <label className="search" htmlFor="docs-search">
+            <I.Search />
+            <input id="docs-search" type="search" placeholder="Search" aria-label="Search documents" value={q} onChange={(e) => setQ(e.target.value)} />
+          </label>
+        )}
+      </header>
+      <main className={"page" + (sel ? "" : " page-fab")}>
+        {!sel && !q && (
+          <section className="doc-acts" aria-label="Add">
+            <label className="doc-act" htmlFor="docs-files">
+              <input id="docs-files" className="file-input" type="file" accept="application/pdf,.pdf,image/*" multiple onChange={(e) => pickFiles(e, onFiles)} />
+              <I.Upload size={28} /><span>Import Files</span>
+            </label>
+            <label className="doc-act" htmlFor="docs-images">
+              <input id="docs-images" className="file-input" type="file" accept="image/*" multiple onChange={(e) => pickFiles(e, onImages)} />
+              <I.Images size={28} /><span>Import Images</span>
+            </label>
+            <button className="doc-act" onClick={() => { setFname(""); setSheet("folder-new"); }}>
+              <I.Folder size={28} /><span>Create Folder</span>
+            </button>
+          </section>
+        )}
+
+        {!sel && (
+          <div className="list-head">
+            <h2>{current ? current.name : "All"} <span className="count">({shown?.length ?? 0})</span></h2>
             <button className="icon-btn" onClick={() => setSheet("sort")} aria-label="Sort"><I.Sort /></button>
             <button className="icon-btn" onClick={() => setView(view === "list" ? "grid" : "list")} aria-label={view === "list" ? "Show as grid" : "Show as list"}>
               {view === "list" ? <I.Tiles /> : <I.List />}
             </button>
             <button className="icon-btn" onClick={() => setSel(new Set())} aria-label="Select"><I.Check /></button>
-          </>
+          </div>
         )}
-      </header>
-      <main className="page">
-        <label className="search" htmlFor="docs-search">
-          <I.Search />
-          <input id="docs-search" type="search" placeholder="Search documents" value={q} onChange={(e) => setQ(e.target.value)} />
-        </label>
-
-        <div className="chips scroll-x" role="tablist" aria-label="Folders">
-          <button className={"chip-btn" + (folder === "all" ? " on" : "")} onClick={() => setFolder("all")}>All</button>
-          {folders.map((f) => (
-            <button key={f.id} className={"chip-btn" + (folder === f.id ? " on" : "")} onClick={() => setFolder(f.id)}>
-              <I.Folder size={16} /> {f.name}
-            </button>
-          ))}
-          <button className="chip-btn chip-add" onClick={() => { setFname(""); setSheet("folder-new"); }}><I.Plus size={16} /> Folder</button>
-        </div>
         {usedTags.length > 0 && (
           <div className="chips scroll-x" aria-label="Tags">
             {usedTags.map((t) => (
-              <button key={t} className={"chip-btn chip-tag" + (tag === t ? " on" : "")} onClick={() => setTag(tag === t ? null : t)}>
-                <I.Tag size={14} /> {t}
-              </button>
+              <button key={t} className={"chip-btn chip-tag" + (tag === t ? " on" : "")} onClick={() => setTag(tag === t ? null : t)}>{t}</button>
             ))}
           </div>
         )}
+        {!current && !sel && !q && folders.length > 0 && (
+          <ul className="folder-list">
+            {folders.map((f) => (
+              <li key={f.id}><button className="folder-row" onClick={() => setFolder(f.id)}><I.Folder size={26} /><span>{f.name}</span><I.Right size={18} /></button></li>
+            ))}
+          </ul>
+        )}
         {current && !sel && (
           <div className="folder-head">
-            <span><I.Folder size={18} /> {current.name}</span>
+            <button className="link-btn" onClick={() => setFolder("all")}><I.Left size={18} /> All documents</button>
             <button className="link-btn" onClick={() => { setFname(current.name); setSheet("folder-edit"); }}>Rename or delete</button>
           </div>
         )}
@@ -182,8 +203,9 @@ export function Documents({ rev, notify, onOpen, onChanged }: Props) {
                     <span className="doc-meta">
                       <span className="doc-name">{doc.name}</span>
                       <span className="doc-sub">
-                        <span className="mono">{doc.pageIds.length}p</span>
-                        <span>{shortDate(sort === "created" ? doc.createdAt : doc.updatedAt)}</span>
+                        <span>{view === "grid" ? shortDate(sort === "created" ? doc.createdAt : doc.updatedAt) : stamp(sort === "created" ? doc.createdAt : doc.updatedAt)}</span>
+                        <span className="sep" aria-hidden="true" />
+                        <span className="pages"><I.Docs size={14} /> {doc.pageIds.length}</span>
                         {view === "list" && doc.tags?.map((t) => <span key={t} className="chip">{t}</span>)}
                       </span>
                     </span>
