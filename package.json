@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "node tests/run.mjs tests/vin.test.ts && node tests/run.mjs tests/pipeline.test.ts && node tests/run.mjs tests/runtime.test.ts && node tests/run.mjs tests/imaging.test.ts && node tests/run.mjs tests/export.test.ts && node tests/run.mjs tests/modes.test.ts && node tests/run.mjs tests/ai.test.ts",
+    "test": "node tests/run.mjs tests/vin.test.ts && node tests/run.mjs tests/pipeline.test.ts && node tests/run.mjs tests/runtime.test.ts && node tests/run.mjs tests/imaging.test.ts && node tests/run.mjs tests/export.test.ts && node tests/run.mjs tests/modes.test.ts && node tests/run.mjs tests/ai.test.ts && node tests/run.mjs tests/backup.test.ts",
     "postinstall": "node tools/copy-vendor.mjs",
     "build:demo": "tsc --noEmit && SINGLE=1 vite build --outDir dist-demo",
     "fixtures": "python3 tools/make_fixtures.py tests/fixtures && python3 tools/to_raw.py tests/fixtures/photo-*.jpg",

@@ -7,11 +7,18 @@ import { canUpdate } from "../lib/updater";
 import { memoryOnly } from "../lib/store";
 import { CameraSettings, ScanSettings } from "./ScanSettings";
 import { AiKeys } from "./AiKeys";
+import { BackupSection } from "./Backup";
 
-interface Props { prefs: Prefs; setPrefs(p: Partial<Prefs>): void; docCount: number }
+interface Props {
+  prefs: Prefs;
+  setPrefs(p: Partial<Prefs>): void;
+  docCount: number;
+  notify(t: { text: string; tone?: "error" }): void;
+  onChanged(): void;
+}
 
 /** The "Me" tab: app version and updates, defaults, storage. */
-export function Settings({ prefs, setPrefs, docCount }: Props) {
+export function Settings({ prefs, setPrefs, docCount, notify, onChanged }: Props) {
   const [space, setSpace] = useState<{ used: number; quota: number } | null>(null);
   useEffect(() => {
     navigator.storage?.estimate?.().then((e) => setSpace({ used: e.usage ?? 0, quota: e.quota ?? 0 })).catch(() => {});
@@ -58,6 +65,11 @@ export function Settings({ prefs, setPrefs, docCount }: Props) {
         <section className="set-group">
           <h2>AI keys</h2>
           <AiKeys />
+        </section>
+
+        <section className="set-group">
+          <h2>Backup</h2>
+          <BackupSection docCount={docCount} notify={notify} onChanged={onChanged} />
         </section>
 
         <section className="set-group">

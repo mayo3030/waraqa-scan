@@ -3,7 +3,7 @@ import * as I from "../icons";
 import { memoryOnly } from "../lib/store";
 import type { Mode } from "../lib/modes";
 import { UpdateButton } from "./UpdateButton";
-import { shortDate, useDocs } from "./useDocs";
+import { stamp, useDocs } from "./useDocs";
 import type { DocTool } from "./DocView";
 
 interface Props {
@@ -48,19 +48,14 @@ export function Home({ rev, onOpen, onCamera, onImages, onFiles, onShare, onAllT
 
   return (
     <>
-      <header className="bar">
-        <div className="brand">
-          <I.Mark />
-          <span className="brand-name">Waraqa</span>
-          <span className="brand-ar" lang="ar">ورقة</span>
-        </div>
-        <UpdateButton />
-      </header>
-      <main className="page">
+      <header className="bar bar-search">
         <label className="search" htmlFor="doc-search">
           <I.Search />
-          <input id="doc-search" type="search" placeholder="Search names and scanned text" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input id="doc-search" type="search" placeholder="Search" aria-label="Search names and scanned text" value={q} onChange={(e) => setQ(e.target.value)} />
         </label>
+        <UpdateButton />
+      </header>
+      <main className="page page-fab">
 
         {!q && (
           <section className="quick" aria-label="Quick actions">
@@ -81,7 +76,7 @@ export function Home({ rev, onOpen, onCamera, onImages, onFiles, onShare, onAllT
               </button>
             ))}
             <button className="quick-btn" onClick={onAllTools}>
-              <span className="quick-ic"><I.Tools size={24} /></span><span>All Tools</span>
+              <span className="quick-ic"><I.Tools size={24} /></span><span>All</span>
             </button>
           </section>
         )}
@@ -101,30 +96,30 @@ export function Home({ rev, onOpen, onCamera, onImages, onFiles, onShare, onAllT
         {shown && shown.length > 0 && (
           <section className="recents">
             <div className="section-head">
-              <h2>{q ? "Results" : "Recent"}</h2>
-              {!q && rows && rows.length > shown.length && <button className="link-btn" onClick={onAllDocs}>See all</button>}
+              <h2>{q ? "Results" : "Recents"}</h2>
+              {!q && <button className="view-all" onClick={onAllDocs}>View All <I.Right size={16} /></button>}
             </div>
             <ul className="doc-list">
-              {shown.map(({ doc, thumb }) => (
+              {shown.map(({ doc, thumb }, i) => (
                 <li key={doc.id} className="recent">
                   <button className="doc-row" onClick={() => onOpen(doc.id)}>
                     <span className="doc-thumb">{thumb ? <img src={thumb} alt="" /> : <I.Pdf />}</span>
                     <span className="doc-meta">
                       <span className="doc-name">{doc.name}</span>
                       <span className="doc-sub">
-                        <span className="mono">{doc.pageIds.length} {doc.pageIds.length === 1 ? "page" : "pages"}</span>
-                        <span aria-hidden="true">·</span>
-                        <span>{shortDate(doc.updatedAt)}</span>
+                        <span>{stamp(doc.updatedAt)}</span>
+                        <span className="sep" aria-hidden="true" />
+                        <span className="pages"><I.Docs size={14} /> {doc.pageIds.length}</span>
                         {doc.sample && <span className="chip">Example</span>}
                         {doc.tags?.slice(0, 1).map((t) => <span key={t} className="chip">{t}</span>)}
                       </span>
                     </span>
                   </button>
-                  <div className="recent-acts">
-                    <button onClick={() => onShare(doc.id)} disabled={!doc.pageIds.length}><I.Share /> Share</button>
+                  {i === 0 && !q && <div className="recent-acts">
+                    <button onClick={() => onShare(doc.id)} disabled={!doc.pageIds.length}>Share</button>
                     <button onClick={() => onOpen(doc.id, "word")} disabled={!doc.pageIds.length}><I.Word size={18} /> To Word</button>
-                    <button onClick={() => onOpen(doc.id)}><I.Right /> View</button>
-                  </div>
+                    <button onClick={() => onOpen(doc.id)}>View</button>
+                  </div>}
                 </li>
               ))}
             </ul>

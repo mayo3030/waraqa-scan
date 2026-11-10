@@ -342,7 +342,7 @@ export function App() {
           onAllDocs={() => setRoute({ name: "tab", tab: "docs" })}
         />
       )}
-      {route.name === "tab" && route.tab === "docs" && <Documents {...tabProps} onOpen={(id) => openDoc(id)} onChanged={bump} />}
+      {route.name === "tab" && route.tab === "docs" && <Documents {...tabProps} onOpen={(id) => openDoc(id)} onChanged={bump} onImages={(b) => openPhoto(b)} onFiles={importFiles} />}
       {route.name === "tab" && route.tab === "tools" && (
         <Tools
           onCamera={(mode) => setRoute({ name: "camera", mode })}
@@ -352,7 +352,7 @@ export function App() {
           onPdfFile={pdfFileTool}
         />
       )}
-      {route.name === "tab" && route.tab === "me" && <MeTab rev={rev} prefs={prefs} setPrefs={setPrefs} />}
+      {route.name === "tab" && route.tab === "me" && <MeTab rev={rev} prefs={prefs} setPrefs={setPrefs} notify={notify} onChanged={bump} />}
 
       {route.name === "doc" && (
         <DocView
@@ -410,11 +410,13 @@ export function App() {
         <EraseScreen page={route.page} label={route.label} notify={notify} onDone={(changed) => { if (changed) bump(); openDoc(route.docId); }} />
       )}
 
+      {route.name === "tab" && (route.tab === "home" || route.tab === "docs") && (
+        <button className="fab" onClick={() => setRoute({ name: "camera", mode: "scan" })} aria-label="Scan"><I.Camera size={30} /></button>
+      )}
       {showTabs && (
         <nav className="tabbar" aria-label="Main">
           <TabBtn on={route.tab === "home"} label="Home" icon={<I.Home />} onClick={() => setRoute({ name: "tab", tab: "home" })} />
-          <TabBtn on={route.tab === "docs"} label="Documents" icon={<I.Docs />} onClick={() => setRoute({ name: "tab", tab: "docs" })} />
-          <button className="tab-scan" onClick={() => setRoute({ name: "camera", mode: "scan" })} aria-label="Scan"><I.Camera size={28} /></button>
+          <TabBtn on={route.tab === "docs"} label="All Documents" icon={<I.Docs />} onClick={() => setRoute({ name: "tab", tab: "docs" })} />
           <TabBtn on={route.tab === "tools"} label="Tools" icon={<I.Tools />} onClick={() => setRoute({ name: "tab", tab: "tools" })} />
           <TabBtn on={route.tab === "me"} label="Me" icon={<I.Me />} onClick={() => setRoute({ name: "tab", tab: "me" })} />
         </nav>
@@ -451,9 +453,11 @@ function TabBtn({ on, label, icon, onClick }: { on: boolean; label: string; icon
   );
 }
 
-function MeTab({ rev, prefs, setPrefs }: { rev: number; prefs: ReturnType<typeof usePrefs>[0]; setPrefs: ReturnType<typeof usePrefs>[1] }) {
+function MeTab({ rev, prefs, setPrefs, notify, onChanged }: {
+  rev: number; prefs: ReturnType<typeof usePrefs>[0]; setPrefs: ReturnType<typeof usePrefs>[1]; notify(t: Toast): void; onChanged(): void;
+}) {
   const { rows } = useDocs(rev);
-  return <Settings prefs={prefs} setPrefs={setPrefs} docCount={rows?.length ?? 0} />;
+  return <Settings prefs={prefs} setPrefs={setPrefs} docCount={rows?.length ?? 0} notify={notify} onChanged={onChanged} />;
 }
 
 const TOOL_NAMES: Partial<Record<DocTool, string>> = {

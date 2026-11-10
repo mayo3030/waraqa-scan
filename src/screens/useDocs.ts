@@ -31,3 +31,10 @@ export function useDocs(rev: number): { rows: Row[] | null; folders: FolderRec[]
 
 export const shortDate = (t: number) =>
   new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+
+/** Date and time as shown under a document name: 07/13/2026 13:37 in the phone's own order. */
+export const stamp = (t: number) => {
+  const d = new Date(t);
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "2-digit", day: "2-digit" }) + " " +
+    d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
+};
