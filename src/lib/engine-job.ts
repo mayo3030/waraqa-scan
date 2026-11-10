@@ -2,7 +2,7 @@
 import { detectPage, type Detection } from "./detect";
 import type { Adjust, FilterKind } from "./filters";
 import type { Quad, Raster } from "./geometry";
-import { flatten, finish } from "./pipeline";
+import { flatten, flattenDeglare, finish } from "./pipeline";
 import { colorize, countObjects, type Counted, eraseMarks, idCardSheet, inpaint, photoSheet, PHOTO_SIZES, restorePhoto, splitSpread, stackPages, stitchVertical, whiteboard } from "./imaging";
 
 export type ToolOp = "eraseMarks" | "restore" | "whiteboard" | "colorize";
@@ -15,6 +15,7 @@ export type Job =
   | { op: "inpaint"; src: Raster; mask: Uint8Array }
   | { op: "split"; src: Raster }
   | { op: "stitch"; src: Raster; more: Raster[] }
+  | { op: "deglare"; src: Raster; more: Raster[]; quads: Quad[]; maxSide?: number }
   | { op: "stack"; src: Raster; more: Raster[] }
   | { op: "idcard"; src: Raster; more: Raster[]; paper: "letter" | "a4"; card?: [number, number] }
   | { op: "count"; src: Raster; sensitivity: number }
@@ -40,6 +41,7 @@ export function runJob(job: Job, cv: any): JobResult {
     case "inpaint": return { raster: inpaint(job.src, job.mask) };
     case "split": return { rasters: splitSpread(job.src) };
     case "stitch": return { raster: stitchVertical([job.src, ...job.more]) };
+    case "deglare": return { raster: flattenDeglare([job.src, ...job.more], job.quads, job.maxSide) };
     case "stack": return { raster: stackPages([job.src, ...job.more]) };
     case "idcard": return { raster: idCardSheet([job.src, ...job.more], job.paper, job.card) };
     case "count": return { counted: countObjects(job.src, job.sensitivity) };

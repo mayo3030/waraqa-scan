@@ -13,6 +13,7 @@ interface Props {
   onChanged(): void;
   onImages(b: Blob[]): void;
   onFiles(f: File[]): void;
+  onScan(): void;
 }
 
 const pickFiles = (e: React.ChangeEvent<HTMLInputElement>, then: (f: File[]) => void) => {
@@ -30,7 +31,7 @@ function pref<T extends string>(key: string, def: T): [T, (v: T) => void] {
 }
 
 /** All documents: folders, tags, sort, grid or list, and actions on several at once. */
-export function Documents({ rev, notify, onOpen, onChanged, onImages, onFiles }: Props) {
+export function Documents({ rev, notify, onOpen, onChanged, onImages, onFiles, onScan }: Props) {
   const { rows, folders } = useDocs(rev);
   const [folder, setFolder] = useState<string | "all">("all");
   const [tag, setTag] = useState<string | null>(null);
@@ -217,6 +218,8 @@ export function Documents({ rev, notify, onOpen, onChanged, onImages, onFiles }:
         )}
       </main>
 
+      {/* Hidden while selecting, so it never sits on top of the actions below. */}
+      {!sel && <button className="fab" onClick={onScan} aria-label="Scan"><I.Camera size={30} /></button>}
       {sel && (
         <footer className="dock select-dock">
           <button className="tool" onClick={() => setSheet("move")} disabled={!sel.size}><I.Folder /><span>Move</span></button>

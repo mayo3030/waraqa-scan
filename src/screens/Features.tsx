@@ -1,4 +1,5 @@
 import * as I from "../icons";
+import { toneOf } from "../lib/tones";
 import type { Mode } from "../lib/modes";
 import type { DocTool } from "./DocView";
 
@@ -42,6 +43,8 @@ export const FEATURE_GROUPS: { title: string; items: Feature[] }[] = [
       { kind: "cam", mode: "idphoto", label: "ID Photo Maker", icon: <I.Person size={24} /> },
       { kind: "cam", mode: "restore", label: "Restore Photo", icon: <I.Restore size={24} /> },
       { kind: "cam", mode: "erase", label: "Smart Erase", icon: <I.Eraser size={24} /> },
+      { kind: "doc", tool: "ai-hd", label: "AI HD", icon: <I.Hd size={24} /> },
+      { kind: "doc", tool: "ai-bg", label: "Remove Background", icon: <I.Cutout size={24} /> },
       { kind: "cam", mode: "code", label: "Scan Code", icon: <I.Qr size={24} /> },
     ],
   },
@@ -76,7 +79,7 @@ export function FeatureSheet({ onMode, onDocTool, onClose }: { onMode(m: Mode): 
             <div className="tool-grid">
               {g.items.map((it) => (
                 <button key={it.label} className="tg-btn" onClick={() => (it.kind === "cam" ? onMode(it.mode) : onDocTool(it.tool))}>
-                  <span className="tg-ic">{it.icon}</span><span>{it.label}</span>
+                  <span className="tg-ic" data-tone={toneOf(it.label)}>{it.icon}</span><span>{it.label}</span>
                 </button>
               ))}
             </div>

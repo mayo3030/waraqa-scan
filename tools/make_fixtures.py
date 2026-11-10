@@ -82,6 +82,93 @@ truth = {}
 truth["photo-wood.jpg"] = photo(page, (1500, 2000), [(230, 250), (1290, 330), (1350, 1760), (170, 1690)], (120, 82, 50), (1.0, 0.72), "photo-wood.jpg", 1)
 truth["photo-desk.jpg"] = photo(page, (2000, 1500), [(520, 120), (1500, 190), (1640, 1390), (360, 1330)], (72, 76, 84), (0.95, 0.8), "photo-desk.jpg", 2)
 truth["photo-light.jpg"] = photo(page, (1500, 2000), [(160, 210), (1330, 160), (1400, 1850), (110, 1880)], (200, 196, 188), (1.0, 0.85), "photo-light.jpg", 3)
+
+# ---- Harder scenes: a card held in a hand, the way people really scan IDs ----
+def make_card():
+    """An ID-style card: cream face with text and a picture, a white strip with a dense code block."""
+    W, H = 1012, 638
+    c = Image.new("RGB", (W, H), (236, 222, 196))
+    d = ImageDraw.Draw(c)
+    d.rectangle((640, 0, W, H), fill=(246, 246, 244))
+    rnd = random.Random(7)
+    for y in range(40, H - 40, 9):
+        for x in range(680, W - 40, 9):
+            if rnd.random() < 0.5: d.rectangle((x, y, x + 8, y + 8), fill=(20, 20, 24))
+    d.rectangle((40, 60, 210, 280), fill=(60, 80, 130)); d.ellipse((80, 90, 170, 190), fill=(205, 170, 80))
+    for i, wdt in enumerate([360, 300, 420, 260, 380]):
+        d.rectangle((250, 80 + i * 64, 250 + wdt, 104 + i * 64), fill=(40, 34, 30))
+    d.rectangle((60, 380, 560, 410), fill=(60, 50, 44)); d.rectangle((60, 450, 420, 476), fill=(60, 50, 44))
+    d.ellipse((440, 440, 600, 600), outline=(170, 110, 80), width=10)
+    m = Image.new("L", (W, H), 0)
+    ImageDraw.Draw(m).rounded_rectangle((0, 0, W - 1, H - 1), radius=34, fill=255)
+    return c, m
+
+def hand_photo(size, corners, fingers, name, seed, bg=(34, 30, 34), skin=(150, 104, 84), light=(1.0, 0.7)):
+    """corners: where the card's four corners land, in order top-left, top-right, bottom-right, bottom-left
+    of the card itself. fingers: ellipses (cx, cy, rx, ry, angle) drawn over the card, sticking out past its edge."""
+    rnd = np.random.default_rng(seed)
+    W, H = size
+    yy, xx = np.mgrid[0:H, 0:W]
+    base = np.zeros((H, W, 3), float)
+    for c in range(3):
+        base[..., c] = bg[c] + 14 * np.sin(xx / 90.0 + yy / 130.0) + 10 * np.cos(yy / 57.0) + rnd.normal(0, 5, (H, W))
+    img = Image.fromarray(np.clip(base, 0, 255).astype("uint8"))
+    # the palm behind the card
+    palm = Image.new("L", (W, H), 0)
+    xs = [p[0] for p in corners]; ys = [p[1] for p in corners]
+    cx, cy = sum(xs) / 4, sum(ys) / 4
+    ImageDraw.Draw(palm).ellipse((cx - (max(xs) - min(xs)) * 0.62, cy - (max(ys) - min(ys)) * 0.5, cx + (max(xs) - min(xs)) * 0.66, cy + (max(ys) - min(ys)) * 0.72), fill=255)
+    palm = palm.filter(ImageFilter.GaussianBlur(14))
+    img = Image.composite(Image.new("RGB", (W, H), skin), img, palm)
+    card, cm = make_card()
+    cw, ch = card.size
+    src = [(0, 0), (cw, 0), (cw, ch), (0, ch)]
+    k = coeffs(src, corners)
+    warped = card.transform((W, H), Image.PERSPECTIVE, k, Image.BICUBIC)
+    mask = cm.transform((W, H), Image.PERSPECTIVE, k, Image.BICUBIC)
+    img.paste(warped, (0, 0), mask)
+    # fingers on top, each a little lighter along one side like real knuckles
+    for (fx, fy, rx, ry, ang) in fingers:
+        f = Image.new("L", (W, H), 0)
+        e = Image.new("L", (int(rx * 2), int(ry * 2)), 0)
+        ImageDraw.Draw(e).ellipse((0, 0, rx * 2 - 1, ry * 2 - 1), fill=255)
+        e = e.rotate(ang, expand=True)
+        f.paste(e, (int(fx - e.size[0] / 2), int(fy - e.size[1] / 2)))
+        f = f.filter(ImageFilter.GaussianBlur(3))
+        tone = tuple(int(v * rnd.uniform(0.92, 1.1)) for v in skin)
+        img = Image.composite(Image.new("RGB", (W, H), tone), img, f)
+    arr = np.asarray(img).astype(float)
+    g = light[0] + (light[1] - light[0]) * ((xx / W) * 0.5 + (yy / H) * 0.5)
+    arr *= g[..., None]
+    arr += rnd.normal(0, 4, arr.shape)
+    out_img = Image.fromarray(np.clip(arr, 0, 255).astype("uint8")).filter(ImageFilter.GaussianBlur(1.6))
+    out_img.save(os.path.join(out, name), quality=86)
+
+def ordered(corners):
+    """The same corners in image order: top-left, top-right, bottom-right, bottom-left."""
+    cx = sum(p[0] for p in corners) / 4; cy = sum(p[1] for p in corners) / 4
+    import math
+    pts = sorted(corners, key=lambda p: math.atan2(p[1] - cy, p[0] - cx))
+    i = min(range(4), key=lambda j: pts[j][0] + pts[j][1])
+    return [list(pts[(i + j) % 4]) for j in range(4)]
+
+# A card held upright (turned a quarter), a thumb over its right edge near the top and fingertips at the bottom left.
+c1 = [(1180, 330), (1230, 1660), (330, 1700), (300, 370)]
+hand_photo((1500, 2000), c1, [(1330, 560, 230, 100, 12), (1310, 1250, 200, 90, -6), (270, 1540, 190, 90, 30)], "photo-hand-1.jpg", 11)
+truth["photo-hand-1.jpg"] = ordered(c1)
+# Lying flat and tilted, in poorer light, pale skin close to the card's own colour, a thumb from below.
+c2 = [(260, 520), (1650, 430), (1730, 1260), (310, 1390)]
+hand_photo((2000, 1500), c2, [(1000, 1440, 240, 100, 80), (1820, 700, 220, 95, 0), (200, 980, 200, 90, 5)], "photo-hand-2.jpg", 12, bg=(52, 46, 40), skin=(206, 172, 142), light=(0.95, 0.6))
+truth["photo-hand-2.jpg"] = ordered(c2)
+# Filling the photo, close to its right edge, fingers along the right side, on a lighter cloth.
+c3 = [(1440, 150), (1462, 1850), (380, 1880), (350, 190)]
+hand_photo((1500, 2000), c3, [(1470, 700, 180, 92, 4), (1480, 1300, 170, 88, -3), (330, 1100, 210, 92, 3)], "photo-hand-3.jpg", 13, bg=(96, 92, 88), skin=(176, 130, 104), light=(1.0, 0.8))
+truth["photo-hand-3.jpg"] = ordered(c3)
+
+# A long narrow receipt on a dark counter, turned a little.
+receipt = page.crop((100, 100, 800, 2100))
+truth["photo-receipt.jpg"] = photo(receipt, (1500, 2000), [(560, 180), (1010, 215), (960, 1830), (500, 1800)], (58, 54, 52), (1.0, 0.75), "photo-receipt.jpg", 4)
+
 import json
 json.dump(truth, open(os.path.join(out, "truth.json"), "w"))
 print("done")

@@ -29,6 +29,7 @@ export function CameraSettings({ prefs, setPrefs }: P) {
           ))}
         </div>
       </div>
+      {sw(prefs, setPrefs, "outline", "Live page outline", "Shows the page edges on the camera while you aim", <I.Scan size={18} />)}
       {sw(prefs, setPrefs, "grid", "Grid", undefined, <I.Grid size={18} />)}
       {sw(prefs, setPrefs, "sound", "Shutter sound")}
       {sw(prefs, setPrefs, "level", "Spirit level", "Shows a bubble so you can hold the phone flat over the page", <I.Level size={18} />)}

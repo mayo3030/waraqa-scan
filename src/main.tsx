@@ -1,19 +1,15 @@
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { UpdateProvider } from "./screens/Update";
+// The fonts ship inside the app, so it looks the same with no internet and
+// nothing is fetched from another site when it opens.
+import "@fontsource-variable/bricolage-grotesque/wght.css";
+import "@fontsource/ibm-plex-sans-arabic/400.css";
+import "@fontsource/ibm-plex-sans-arabic/500.css";
+import "@fontsource/ibm-plex-sans-arabic/600.css";
+import "@fontsource/ibm-plex-sans-arabic/700.css";
+import "@fontsource/ibm-plex-mono/500.css";
 import "./styles.css";
+import "./theme.css";
 
-// Loaded after the page is up. A stalled fonts.googleapis.com request used to
-// sit in the document head and hold the first paint (and the Android splash)
-// until the phone gave up, which looks like the app hanging on launch.
-function loadBrandFonts() {
-  if (document.getElementById("brand-fonts")) return;
-  const link = document.createElement("link");
-  link.id = "brand-fonts";
-  link.rel = "stylesheet";
-  link.href = "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap";
-  document.head.appendChild(link);
-}
-
-createRoot(document.getElementById("root")!).render(<App />);
-if (document.readyState === "complete") loadBrandFonts();
-else window.addEventListener("load", loadBrandFonts, { once: true });
+createRoot(document.getElementById("root")!).render(<UpdateProvider><App /></UpdateProvider>);

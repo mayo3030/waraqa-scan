@@ -45,11 +45,30 @@ function giveUp(pending: Promise<Worker>) {
   pending.then((w) => w.terminate()).catch(() => {});
 }
 
-export async function recognize(
+/** A word with its box in image pixels: left, top, right, bottom. Top and bottom are the line's, so a line shares one baseline. */
+export type WordBox = [string, number, number, number, number];
+export interface PageText { text: string; words: WordBox[] }
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function wordsOf(data: any): WordBox[] {
+  const out: WordBox[] = [];
+  for (const b of data?.blocks ?? []) for (const p of b.paragraphs ?? []) for (const l of p.lines ?? []) {
+    const lb = l.bbox;
+    for (const w of l.words ?? []) {
+      const t = String(w.text ?? "").trim();
+      if (t && w.bbox && lb) out.push([t, w.bbox.x0, lb.y0, w.bbox.x1, lb.y1]);
+    }
+  }
+  return out;
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+/** Reads each image and also returns where every word sits. */
+export async function recognizeDetailed(
   images: Blob[],
   lang: OcrLang,
   progress: (label: string, value: number) => void,
-): Promise<string[]> {
+): Promise<PageText[]> {
   const pending = getWorker(lang);
   let w: Worker;
   try {
@@ -58,7 +77,7 @@ export async function recognize(
     giveUp(pending);
     throw e;
   }
-  const texts: string[] = [];
+  const out: PageText[] = [];
   try {
     for (let i = 0; i < images.length; i++) {
       const n = images.length;
@@ -74,15 +93,23 @@ export async function recognize(
         tessedit_pageseg_mode: PSM.SINGLE_COLUMN,
         preserve_interword_spaces: lang === "eng" ? "0" : "1",
       }), START_MS, "Text reading took too long to start");
-      const r = await withTimeout(w.recognize(images[i]), PAGE_MS, "Text reading took too long");
-      texts.push(fixVins(r.data.text.trim()));
+      const r = await withTimeout(w.recognize(images[i], {}, { text: true, blocks: true }), PAGE_MS, "Text reading took too long");
+      out.push({ text: fixVins(r.data.text.trim()), words: wordsOf(r.data) });
     }
   } catch (e) {
     giveUp(pending);
     throw e;
   }
   progress("Done", 1);
-  return texts;
+  return out;
+}
+
+export async function recognize(
+  images: Blob[],
+  lang: OcrLang,
+  progress: (label: string, value: number) => void,
+): Promise<string[]> {
+  return (await recognizeDetailed(images, lang, progress)).map((p) => p.text);
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */

@@ -10,6 +10,14 @@ import { TARGETS } from "../lib/translate";
 import { CodeResult } from "./CodeResult";
 import { FeatureSheet } from "./Features";
 import { CameraSettings, ScanSettings } from "./ScanSettings";
+import { detectAsync } from "../lib/engine";
+import type { Quad } from "../lib/geometry";
+import { AutoShot, coverMap, OutlineTracker, type OutlineState } from "../lib/liveedge";
+
+// Modes where the camera shows the page edges live while you aim.
+const OUTLINE: ReadonlySet<Mode> = new Set<Mode>(["scan", "ocr", "word", "excel", "idcard", "receipt", "whiteboard", "slides", "formula", "translate", "question", "restore", "erase"]);
+// Modes of many flat pages where Auto capture takes each page once it is steady.
+const AUTO_PAGE: ReadonlySet<Mode> = new Set<Mode>(["scan", "ocr", "word", "excel", "receipt", "whiteboard", "slides", "translate", "question"]);
 import type { DocTool } from "./DocView";
 
 export interface Shots { blobs: Blob[]; mode: Mode; stamps?: string[][]; opts?: ModeOpts }
@@ -45,6 +53,23 @@ interface Shot { blob: Blob; url: string; stamp?: string[] }
  * not available (no permission, old WebView) the shutter opens the phone's
  * own camera app instead.
  */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/** The camera's own full-resolution photo, or null. */
+async function fullPhoto(track?: MediaStreamTrack): Promise<Blob | null> {
+  const IC = (window as any).ImageCapture;
+  if (!IC || !track || track.readyState !== "live") return null;
+  try {
+    const ic = new IC(track);
+    const shot: Promise<Blob> = ic.takePhoto();
+    const blob = await Promise.race([shot, new Promise<null>((res) => setTimeout(() => res(null), 3500))]);
+    shot.catch(() => {});
+    return blob && blob.size > 20000 ? blob : null;
+  } catch {
+    return null;
+  }
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 /** Modes that open on a short explainer with one Capture button. */
 const INTRO: Partial<Record<Mode, string>> = {
   mega: "For pages too long for one photo. Take it in parts from the top down and Waraqa joins them into one long page.",
@@ -70,6 +95,7 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
   const [preset, setPreset] = useState<IdPreset>("general");
   const [watermark, setWatermark] = useState("");
   const [idPaper, setIdPaper] = useState<"a4" | "letter">("a4");
+  const [noGlare, setNoGlare] = useState(() => { try { return localStorage.getItem("waraqa-noglare") !== "0"; } catch { return true; } });
   const [restoreKind, setRestoreKind] = useState<"restore" | "colorize">("restore");
   const [aiOn, setAiOn] = useState(false);
   const [auto, setAuto] = useState(false); // book: take a photo after each page turn
@@ -81,8 +107,15 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
 
   const info = modeInfo(mode);
   const need = mode === "idcard" ? idPreset(preset).sides : info.shots === "two" ? 2 : info.shots === "one" ? 1 : 0; // 0: any number
-  const multi = need === 2 || mode === "mega" || (info.shots === "many" && (batch || auto));
-  const opts: ModeOpts = { id: preset, watermark: watermark.trim() ? `For ${watermark.trim()} use only` : undefined, paper: idPaper, restore: restoreKind, ai: aiOn };
+  // Remove glare: two photos of each card side, joined later without the flash shine.
+  const perSide = mode === "idcard" && noGlare ? 2 : 1;
+  const total = need * perSide; // 0: any number
+  const multi = total >= 2 || mode === "mega" || (info.shots === "many" && (batch || auto));
+  const opts: ModeOpts = { id: preset, watermark: watermark.trim() ? `For ${watermark.trim()} use only` : undefined, paper: idPaper, restore: restoreKind, ai: aiOn, deglare: mode === "idcard" && noGlare };
+  const toggleGlare = (on: boolean) => {
+    setNoGlare(on);
+    try { localStorage.setItem("waraqa-noglare", on ? "1" : "0"); } catch { /* not kept */ }
+  };
 
   // Start (and restart on HD change) the back camera.
   useEffect(() => {
@@ -194,6 +227,55 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
     return () => clearInterval(timer);
   }, [auto, mode, live]);
 
+  // Live page outline: a small frame goes to the page finder a few times a second and the
+  // corners are drawn over the picture. With Auto capture on, a steady page takes the photo.
+  const [outline, setOutline] = useState<{ pts: string; corners: Quad; state: OutlineState; w: number; h: number } | null>(null);
+  const autoPage = auto && AUTO_PAGE.has(mode);
+  const autoPageRef = useRef(autoPage);
+  autoPageRef.current = autoPage;
+  const outlineOn = live === "on" && !intro && OUTLINE.has(mode) && (prefs.outline || autoPage);
+  const [autoWait, setAutoWait] = useState(false); // a page was taken, waiting for the next one
+  useEffect(() => {
+    if (!outlineOn) { setOutline(null); return; }
+    const c = document.createElement("canvas");
+    const ctx = c.getContext("2d", { willReadFrequently: true })!;
+    const tracker = new OutlineTracker();
+    const shot = new AutoShot();
+    let stop = false, timer = 0;
+    const tick = async () => {
+      if (stop) return;
+      const v = video.current;
+      let wait = 140;
+      if (v && v.readyState >= 2 && v.videoWidth && !document.hidden) {
+        const k = 400 / Math.max(v.videoWidth, v.videoHeight);
+        const w = Math.round(v.videoWidth * k), h = Math.round(v.videoHeight * k);
+        if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+        ctx.drawImage(v, 0, 0, w, h);
+        const frame = ctx.getImageData(0, 0, w, h).data;
+        let found: Quad | null = null;
+        try {
+          const d = await detectAsync({ width: w, height: h, data: new Uint8ClampedArray(frame) });
+          if (d.found) found = d.quad;
+        } catch {
+          wait = 1200; // the page finder is busy or not ready: try again a little later
+        }
+        if (stop) return;
+        const now = performance.now();
+        const r = tracker.update(found, w, h, now);
+        const bw = v.clientWidth || w, bh = v.clientHeight || h;
+        if (r.quad) {
+          const q = coverMap(r.quad, w, h, bw, bh);
+          setOutline({ pts: q.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" "), corners: q, state: r.state, w: bw, h: bh });
+        } else setOutline(null);
+        if (autoPageRef.current && shot.next(r.state, frame, now)) captureRef.current();
+        setAutoWait(autoPageRef.current && shot.waiting);
+      }
+      timer = window.setTimeout(tick, wait);
+    };
+    timer = window.setTimeout(tick, 250);
+    return () => { stop = true; clearTimeout(timer); setOutline(null); };
+  }, [outlineOn]);
+
   const toggleTorch = async () => {
     const track = stream.current?.getVideoTracks()[0];
     if (!track || torch === null) return;
@@ -210,21 +292,36 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
   const finish = useCallback((list: Shot[]) => {
     if (!list.length) return;
     onShots({ blobs: list.map((s) => s.blob), mode, stamps: mode === "timestamp" ? list.map((s) => s.stamp ?? []) : undefined, opts });
-  }, [mode, onShots, opts.id, opts.watermark, opts.paper, opts.restore, opts.ai]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mode, onShots, opts.id, opts.watermark, opts.paper, opts.restore, opts.ai, opts.deglare]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addShots = (blobs: Blob[]) => {
     const made = blobs.map((blob) => ({ blob, url: URL.createObjectURL(blob), stamp: stampNow() }));
     const next = [...shots, ...made];
-    if (need === 1 || (!multi && info.shots === "many") || (need === 2 && next.length >= 2)) {
+    if ((total > 0 && next.length >= total) || (!multi && info.shots === "many")) {
       finish(next);
       return;
     }
     setShots(next);
   };
 
+  const taking = useRef(false);
   const capture = async () => {
+    if (taking.current) return;
+    taking.current = true;
+    try { await takePhoto(); } finally { taking.current = false; }
+  };
+  const takePhoto = async () => {
     const v = video.current;
-    if (!v || live !== "on" || !v.videoWidth) return;
+    if (!v || live !== "on") return;
+    // A tap in the first moment, before the first frame arrives, waits for it instead of doing nothing.
+    if (!v.videoWidth) {
+      await new Promise<void>((res) => {
+        const done = () => res();
+        v.addEventListener("loadeddata", done, { once: true });
+        setTimeout(done, 2500);
+      });
+      if (!v.videoWidth) { notify({ text: "The camera is still starting. Try again in a moment." }); return; }
+    }
     if (prefs.doubleFocus) {
       const track = stream.current?.getVideoTracks()[0];
       const modes = ((track?.getCapabilities?.() ?? {}) as { focusMode?: string[] }).focusMode ?? [];
@@ -236,12 +333,17 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
       }
     }
     if (prefs.sound) shutterClick();
-    const c = document.createElement("canvas");
-    c.width = v.videoWidth; c.height = v.videoHeight;
-    c.getContext("2d")!.drawImage(v, 0, 0);
     setFlashFx(true);
     setTimeout(() => setFlashFx(false), 120);
-    const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/jpeg", 0.92));
+    // A real photo from the camera's sensor (often 12 MP or more) instead of a frame of the
+    // preview video (about 2 MP): much sharper text. Falls back to the frame when the phone
+    // does not offer it or takes too long.
+    const blob = (await fullPhoto(stream.current?.getVideoTracks()[0])) ?? (await new Promise<Blob | null>((res) => {
+      const c = document.createElement("canvas");
+      c.width = v.videoWidth; c.height = v.videoHeight;
+      c.getContext("2d")!.drawImage(v, 0, 0);
+      c.toBlob(res, "image/jpeg", 0.95);
+    }));
     if (!blob) return;
     if (prefs.saveToGallery) saveToGallery(blob).then((ok) => { if (!ok) notify({ text: "This phone could not save the photo to the gallery" }); });
     addShots([blob]);
@@ -279,12 +381,19 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
     setIntro(hasIntro(m));
   };
 
+  function idPrompt() {
+    const side = need === 1 ? "Photo page" : Math.floor(shots.length / perSide) === 0 ? "Front side" : "Back side";
+    if (perSide === 1) return need === 1 ? "Photo page inside the frame" : shots.length ? "Now the back" : "Front side inside the frame";
+    return shots.length % 2 === 0 ? `${side} inside the frame (1 of 2)` : "Same side again, tilt the phone a little (2 of 2)";
+  }
+
   const prompt =
     intro ? null :
-    mode === "idcard" ? (need === 1 ? "Photo page inside the frame" : shots.length ? "Now the back" : "Front side inside the frame") :
+    mode === "idcard" ? idPrompt() :
     mode === "formula" ? "Fit the formulas in the frame, you can crop next" :
     mode === "count" ? "Hold the phone above the objects" :
     mode === "book" && auto ? (shots.length ? `${shots.length} taken. Turn the page and hold still` : "Hold still on the first spread") :
+    autoPage ? (autoWait || (!outline && shots.length) ? `${shots.length} taken. Put the next page in view` : outline?.state === "steady" ? "Hold still, taking the photo" : outline ? "Hold still" : "Point the camera at the page") :
     mode === "mega" ? (shots.length ? `Part ${shots.length + 1}: move down, keep some overlap` : "Start at the top of the page") :
     mode === "book" ? "Spine on the middle line" :
     mode === "idphoto" ? "Face inside the oval, plain wall behind" :
@@ -326,6 +435,12 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
           </div>
         )}
         {live === "on" && prefs.grid && <div className="cam-grid" aria-hidden="true" />}
+        {outline && (
+          <svg className={"cam-outline " + outline.state} data-state={outline.state} viewBox={`0 0 ${outline.w} ${outline.h}`} preserveAspectRatio="none" aria-hidden="true">
+            <polygon points={outline.pts} />
+            {outline.corners.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={7} />)}
+          </svg>
+        )}
         {live === "on" && mode === "idcard" && <div className={"guide " + (preset === "passport" ? "guide-passport" : "guide-card")} aria-hidden="true" />}
         {live === "on" && mode === "formula" && <div className="guide guide-formula" aria-hidden="true" />}
         {tilt && (
@@ -340,8 +455,8 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
             <button role="switch" aria-checked={aiOn} className={aiOn ? "on" : ""} onClick={() => { setAiOn(!aiOn); if (!aiOn) notify({ text: "AI uses your Replicate key and sends the photo online" }); }}>AI</button>
           </div>
         )}
-        {mode === "book" && live === "on" && (
-          <button className={"cam-sub cam-auto" + (auto ? " on" : "")} onClick={() => { setAuto(!auto); if (!auto) notify({ text: "Auto capture on: turn the page and hold still" }); }} aria-pressed={auto}>
+        {(mode === "book" || AUTO_PAGE.has(mode)) && live === "on" && !intro && (
+          <button className={"cam-sub cam-auto" + (auto ? " on" : "")} onClick={() => { setAuto(!auto); if (!auto) notify({ text: mode === "book" ? "Auto capture on: turn the page and hold still" : "Auto capture on: hold still over each page, it takes the photo" }); }} aria-pressed={auto}>
             Auto capture {auto ? "on" : "off"}
           </button>
         )}
@@ -357,6 +472,13 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
             </div>
             <IdSheetArt passport={preset === "passport"} mark={watermark.trim()} />
             <p className="small">{need === 1 ? "Take the photo page. It goes on one page at real size, ready to print." : "Take the front, then the back. Both sides go on one page at real size, ready to print."}</p>
+            <label className="switch-row glare-row">
+              <span className="switch-label">
+                <span><I.FlashOff size={18} /> Remove glare</span>
+                <small>{need === 1 ? "2 photos of the page" : "2 photos of each side"}, tilt a little between them. The flash shine is taken out.</small>
+              </span>
+              <input type="checkbox" checked={noGlare} onChange={(e) => toggleGlare(e.target.checked)} />
+            </label>
             <label className="field-inline" htmlFor="id-wm">
               <span>For</span>
               <input id="id-wm" className="field" placeholder="bank, visa, rental" value={watermark} onChange={(e) => setWatermark(e.target.value)} />
@@ -430,13 +552,13 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
           )
         ) : <span className="shutter shutter-idle" aria-hidden="true"><I.Qr size={30} /></span>}
         <div className="cam-side cam-side-end">
-          {shots.length > 0 && need !== 2 ? (
+          {shots.length > 0 && total < 2 ? (
             <button className="btn btn-primary cam-done" onClick={() => finish(shots)}>
               <I.Check /> Done
             </button>
           ) : shots.length === 0 && prefs.showImport && !intro ? (
             <label className="cam-btn cam-import" htmlFor="cam-import" aria-label="Import images">
-              <input id="cam-import" className="file-input" type="file" accept="image/*" multiple={need !== 1} onChange={fromFiles} />
+              <input id="cam-import" className="file-input" type="file" accept="image/*" multiple={total !== 1} onChange={fromFiles} />
               <I.Images />
               <span>Import Images</span>
             </label>

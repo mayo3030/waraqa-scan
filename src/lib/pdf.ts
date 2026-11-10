@@ -2,6 +2,16 @@
 import { jsPDF } from "jspdf";
 import { blobToDataUrl } from "./io";
 import type { PageRec } from "./store";
+import { addTextLayer, wordsFromText, type FontLoader } from "./pdftext";
+import { assetUrl } from "./cvload";
+
+let fontB64: Promise<string | null> | null = null;
+const loadFont: FontLoader = () =>
+  (fontB64 ??= fetch(assetUrl("vendor/fonts/plex-arabic.ttf"))
+    .then((r) => (r.ok ? r.blob() : Promise.reject(new Error("font"))))
+    .then(blobToDataUrl)
+    .then((u) => u.split(",")[1] ?? null)
+    .catch(() => { fontB64 = null; return null; }));
 
 export type PaperSize = "letter" | "a4" | "fit";
 
@@ -20,6 +30,8 @@ export interface PdfOptions {
   watermark?: string;
   /** Asks for this password before the PDF opens. */
   password?: string;
+  /** Read text, one string per page, for pages whose word positions are not known. */
+  text?: string[];
 }
 
 /** Page image ready for export: optional downscale and watermark, as JPEG data URL. */
@@ -66,7 +78,7 @@ export function drawWatermark(ctx: CanvasRenderingContext2D, w: number, h: numbe
 
 export async function buildPdf(pages: PageRec[], paper: PaperSize, title: string, opts: PdfOptions = {}): Promise<Blob> {
   let pdf: jsPDF | null = null;
-  for (const p of pages) {
+  for (const [i, p] of pages.entries()) {
     const img = await exportImage(p, {
       maxSide: opts.compress ? 1240 : undefined,
       quality: opts.compress ? 0.6 : undefined,
@@ -93,6 +105,9 @@ export async function buildPdf(pages: PageRec[], paper: PaperSize, title: string
     const s = Math.min(pw / img.width, ph / img.height);
     const w = img.width * s, h = img.height * s;
     pdf.addImage(img.data, "JPEG", (pw - w) / 2, (ph - h) / 2, w, h, undefined, "FAST");
+    // Searchable: the read words go on top, unseen.
+    const words = p.words?.length ? p.words : wordsFromText(opts.text?.[i] ?? "");
+    if (words.length) await addTextLayer(pdf, words, { x: (pw - w) / 2, y: (ph - h) / 2, w, h }, loadFont);
   }
   if (!pdf) throw new Error("This document has no pages yet");
   pdf.setProperties({ title, creator: "Waraqa Scan" });

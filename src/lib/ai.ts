@@ -1,6 +1,7 @@
 // Online AI features, called straight from the phone with the user's own keys
 // (no Waraqa server). OpenRouter: formula to LaTeX and AI Chat.
-// Replicate: AI photo restore (CodeFormer) and colorize (DDColor).
+// Replicate: AI photo restore (CodeFormer), colorize (DDColor), HD upscaling (Real-ESRGAN)
+// and background removal.
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
 import { getSecret, type SecretName } from "./secrets";
 import { blobToRaster, rasterToBlob } from "./io";
@@ -8,6 +9,8 @@ import { blobToRaster, rasterToBlob } from "./io";
 export const OPENROUTER_MODEL = "anthropic/claude-haiku-5.5";
 const CODEFORMER = "cc4956dd26fa5a7185d5660cc9100fab1b8070a1d1654a8bb5eb6d443b020bb2"; // sczhou/codeformer
 const DDCOLOR = "ca494ba129e44e45f661d6ece83c4c98a9a7c774309beca01429b58fce8aa695"; // piddnad/ddcolor
+const ESRGAN = "279a18ae4f30c9d3636516918d76c8c8262a9bc7c415fe90a88087c78c9ebbef"; // nightmareai/real-esrgan
+const REMBG = "a029dff38972b5fda4ec5d75d7d1cd25aeff621d2cf4946a41055d7db66b80bc"; // 851-labs/background-remover
 
 /** Thrown when the feature's key is not saved yet. */
 export class MissingKey extends Error {
@@ -183,5 +186,22 @@ export async function aiPhoto(kind: "restore" | "colorize", photo: Blob, onWait?
   const url = kind === "restore"
     ? await replicate("sczhou/codeformer", CODEFORMER, { image, codeformer_fidelity: 0.7, background_enhance: true, face_upsample: true, upscale: 2 }, onWait)
     : await replicate("piddnad/ddcolor", DDCOLOR, { image, model_size: "large" }, onWait);
+  return download(url);
+}
+
+/**
+ * AI HD: a sharper, larger page (Real-ESRGAN). scale 2 sends up to 1600 px and returns up to
+ * 3200 px; scale 4 sends up to 1100 px and returns up to 4400 px, which a phone can still open.
+ */
+export async function aiUpscale(photo: Blob, scale: 2 | 4, faces: boolean, onWait?: (s: string) => void): Promise<Blob> {
+  const image = await dataUrl(photo, scale === 4 ? 1100 : 1600, 0.95);
+  const url = await replicate("nightmareai/real-esrgan", ESRGAN, { image, scale, face_enhance: faces }, onWait);
+  return download(url);
+}
+
+/** AI background removal: a PNG with a see-through background around the person or object. */
+export async function aiRemoveBackground(photo: Blob, onWait?: (s: string) => void): Promise<Blob> {
+  const image = await dataUrl(photo, 2048, 0.95);
+  const url = await replicate("851-labs/background-remover", REMBG, { image, background_type: "rgba", format: "png" }, onWait);
   return download(url);
 }

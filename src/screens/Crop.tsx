@@ -31,9 +31,13 @@ export function CropScreen({ s, onCancel, onNext }: Props) {
     const fit = () => {
       const el = wrap.current;
       if (!el) return;
-      const maxW = el.clientWidth, maxH = el.clientHeight;
-      const k = Math.min(maxW / s.src.width, maxH / s.src.height);
-      setScale(k);
+      // clientWidth and clientHeight include the stage's padding: leave it out, or the photo
+      // is drawn wider than the room it has and a corner ends up off the screen.
+      const cs = getComputedStyle(el);
+      const maxW = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const maxH = el.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      if (maxW <= 0 || maxH <= 0) return;
+      setScale(Math.min(maxW / s.src.width, maxH / s.src.height));
     };
     fit();
     const ro = new ResizeObserver(fit);
@@ -140,7 +144,7 @@ export function CropScreen({ s, onCancel, onNext }: Props) {
               <rect width={W} height={H} className="crop-dim" mask="url(#crop-hole)" />
               <polygon points={pts} className={"crop-edge" + (valid ? "" : " crop-bad")} />
               {quad.map((p, i) => (
-                <g key={i} className={"handle" + (drag === i ? " active" : "")} onPointerDown={onDown(i)}>
+                <g key={i} role="button" aria-label={`Corner ${i + 1}`} className={"handle" + (drag === i ? " active" : "")} onPointerDown={onDown(i)}>
                   <circle cx={p.x * scale} cy={p.y * scale} r={22} className="handle-hit" />
                   <circle cx={p.x * scale} cy={p.y * scale} r={9} className="handle-dot" />
                 </g>

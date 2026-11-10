@@ -82,3 +82,5 @@ export const Mark = ({ size = 28 }: I) => (
     <path d="M11 22h8M11 25.5h5" stroke="var(--ink)" strokeWidth="1.8" strokeLinecap="round" />
   </svg>
 );
+export const Hd = ({ size = 20 }: I) => svg(size, <g {...P}><rect x="3" y="5.5" width="18" height="13" rx="2.5" /><path d="M7 9.5v5M7 12h3.2M10.2 9.5v5M13.5 9.5v5h1.6a2.5 2.5 0 0 0 0-5z" /></g>);
+export const Cutout = ({ size = 20 }: I) => svg(size, <g {...P}><path d="M4 7V5.5A1.5 1.5 0 0 1 5.5 4H7M17 4h1.5A1.5 1.5 0 0 1 20 5.5V7M20 17v1.5a1.5 1.5 0 0 1-1.5 1.5H17M7 20H5.5A1.5 1.5 0 0 1 4 18.5V17" /><circle cx="12" cy="10" r="3" /><path d="M7 18c.8-2.5 2.6-3.8 5-3.8s4.2 1.3 5 3.8" /></g>);
