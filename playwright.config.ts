@@ -16,7 +16,7 @@ export default defineConfig({
     colorScheme: "dark",
     permissions: ["camera"],
     acceptDownloads: true,
-    // Full Chromium in its headless mode, the same engine as the Android WebView.
+    // CHROME_PATH points at an installed Chrome (CI and local). Without it, Playwright's own Chromium is used.
     channel: process.env.CHROME_PATH ? undefined : "chromium",
     launchOptions: {
       executablePath: process.env.CHROME_PATH || undefined,
