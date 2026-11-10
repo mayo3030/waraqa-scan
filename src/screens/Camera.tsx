@@ -10,6 +10,14 @@ import { TARGETS } from "../lib/translate";
 import { CodeResult } from "./CodeResult";
 import { FeatureSheet } from "./Features";
 import { CameraSettings, ScanSettings } from "./ScanSettings";
+import { detectAsync } from "../lib/engine";
+import type { Quad } from "../lib/geometry";
+import { AutoShot, coverMap, OutlineTracker, type OutlineState } from "../lib/liveedge";
+
+// Modes where the camera shows the page edges live while you aim.
+const OUTLINE: ReadonlySet<Mode> = new Set<Mode>(["scan", "ocr", "word", "excel", "idcard", "receipt", "whiteboard", "slides", "formula", "translate", "question", "restore", "erase"]);
+// Modes of many flat pages where Auto capture takes each page once it is steady.
+const AUTO_PAGE: ReadonlySet<Mode> = new Set<Mode>(["scan", "ocr", "word", "excel", "receipt", "whiteboard", "slides", "translate", "question"]);
 import type { DocTool } from "./DocView";
 
 export interface Shots { blobs: Blob[]; mode: Mode; stamps?: string[][]; opts?: ModeOpts }
@@ -219,6 +227,55 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
     return () => clearInterval(timer);
   }, [auto, mode, live]);
 
+  // Live page outline: a small frame goes to the page finder a few times a second and the
+  // corners are drawn over the picture. With Auto capture on, a steady page takes the photo.
+  const [outline, setOutline] = useState<{ pts: string; corners: Quad; state: OutlineState; w: number; h: number } | null>(null);
+  const autoPage = auto && AUTO_PAGE.has(mode);
+  const autoPageRef = useRef(autoPage);
+  autoPageRef.current = autoPage;
+  const outlineOn = live === "on" && !intro && OUTLINE.has(mode) && (prefs.outline || autoPage);
+  const [autoWait, setAutoWait] = useState(false); // a page was taken, waiting for the next one
+  useEffect(() => {
+    if (!outlineOn) { setOutline(null); return; }
+    const c = document.createElement("canvas");
+    const ctx = c.getContext("2d", { willReadFrequently: true })!;
+    const tracker = new OutlineTracker();
+    const shot = new AutoShot();
+    let stop = false, timer = 0;
+    const tick = async () => {
+      if (stop) return;
+      const v = video.current;
+      let wait = 140;
+      if (v && v.readyState >= 2 && v.videoWidth && !document.hidden) {
+        const k = 400 / Math.max(v.videoWidth, v.videoHeight);
+        const w = Math.round(v.videoWidth * k), h = Math.round(v.videoHeight * k);
+        if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+        ctx.drawImage(v, 0, 0, w, h);
+        const frame = ctx.getImageData(0, 0, w, h).data;
+        let found: Quad | null = null;
+        try {
+          const d = await detectAsync({ width: w, height: h, data: new Uint8ClampedArray(frame) });
+          if (d.found) found = d.quad;
+        } catch {
+          wait = 1200; // the page finder is busy or not ready: try again a little later
+        }
+        if (stop) return;
+        const now = performance.now();
+        const r = tracker.update(found, w, h, now);
+        const bw = v.clientWidth || w, bh = v.clientHeight || h;
+        if (r.quad) {
+          const q = coverMap(r.quad, w, h, bw, bh);
+          setOutline({ pts: q.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" "), corners: q, state: r.state, w: bw, h: bh });
+        } else setOutline(null);
+        if (autoPageRef.current && shot.next(r.state, frame, now)) captureRef.current();
+        setAutoWait(autoPageRef.current && shot.waiting);
+      }
+      timer = window.setTimeout(tick, wait);
+    };
+    timer = window.setTimeout(tick, 250);
+    return () => { stop = true; clearTimeout(timer); setOutline(null); };
+  }, [outlineOn]);
+
   const toggleTorch = async () => {
     const track = stream.current?.getVideoTracks()[0];
     if (!track || torch === null) return;
@@ -247,7 +304,13 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
     setShots(next);
   };
 
+  const taking = useRef(false);
   const capture = async () => {
+    if (taking.current) return;
+    taking.current = true;
+    try { await takePhoto(); } finally { taking.current = false; }
+  };
+  const takePhoto = async () => {
     const v = video.current;
     if (!v || live !== "on") return;
     // A tap in the first moment, before the first frame arrives, waits for it instead of doing nothing.
@@ -330,6 +393,7 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
     mode === "formula" ? "Fit the formulas in the frame, you can crop next" :
     mode === "count" ? "Hold the phone above the objects" :
     mode === "book" && auto ? (shots.length ? `${shots.length} taken. Turn the page and hold still` : "Hold still on the first spread") :
+    autoPage ? (autoWait || (!outline && shots.length) ? `${shots.length} taken. Put the next page in view` : outline?.state === "steady" ? "Hold still, taking the photo" : outline ? "Hold still" : "Point the camera at the page") :
     mode === "mega" ? (shots.length ? `Part ${shots.length + 1}: move down, keep some overlap` : "Start at the top of the page") :
     mode === "book" ? "Spine on the middle line" :
     mode === "idphoto" ? "Face inside the oval, plain wall behind" :
@@ -371,6 +435,12 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
           </div>
         )}
         {live === "on" && prefs.grid && <div className="cam-grid" aria-hidden="true" />}
+        {outline && (
+          <svg className={"cam-outline " + outline.state} data-state={outline.state} viewBox={`0 0 ${outline.w} ${outline.h}`} preserveAspectRatio="none" aria-hidden="true">
+            <polygon points={outline.pts} />
+            {outline.corners.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={7} />)}
+          </svg>
+        )}
         {live === "on" && mode === "idcard" && <div className={"guide " + (preset === "passport" ? "guide-passport" : "guide-card")} aria-hidden="true" />}
         {live === "on" && mode === "formula" && <div className="guide guide-formula" aria-hidden="true" />}
         {tilt && (
@@ -385,8 +455,8 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
             <button role="switch" aria-checked={aiOn} className={aiOn ? "on" : ""} onClick={() => { setAiOn(!aiOn); if (!aiOn) notify({ text: "AI uses your Replicate key and sends the photo online" }); }}>AI</button>
           </div>
         )}
-        {mode === "book" && live === "on" && (
-          <button className={"cam-sub cam-auto" + (auto ? " on" : "")} onClick={() => { setAuto(!auto); if (!auto) notify({ text: "Auto capture on: turn the page and hold still" }); }} aria-pressed={auto}>
+        {(mode === "book" || AUTO_PAGE.has(mode)) && live === "on" && !intro && (
+          <button className={"cam-sub cam-auto" + (auto ? " on" : "")} onClick={() => { setAuto(!auto); if (!auto) notify({ text: mode === "book" ? "Auto capture on: turn the page and hold still" : "Auto capture on: hold still over each page, it takes the photo" }); }} aria-pressed={auto}>
             Auto capture {auto ? "on" : "off"}
           </button>
         )}

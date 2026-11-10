@@ -12,6 +12,7 @@ export interface Prefs {
   orientation: Orientation;
   sound: boolean; // shutter click
   level: boolean; // spirit level on the camera
+  outline: boolean; // page edges drawn live on the camera
   // scan settings
   autoBorders: boolean; // find the page edges by itself
   adjustEach: boolean; // show corners and filters after each photo
@@ -25,7 +26,7 @@ export interface Prefs {
 
 const DEFAULTS: Prefs = {
   paper: "letter", hd: false, grid: false, location: false,
-  orientation: "auto", sound: true, level: false,
+  orientation: "auto", sound: true, level: false, outline: true,
   autoBorders: true, adjustEach: true, startCamera: false, systemCamera: false, showImport: true, saveToGallery: false, doubleFocus: false,
   translateTo: "ar",
 };

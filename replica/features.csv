@@ -13,7 +13,8 @@ Camera modes: ID card / book / receipt / whiteboard / QR,capture,should,yes,yes,
 Convert to Word / Excel / PowerPoint,export,should,yes,yes,tables are guessed from the text
 ID photo / smart erase / mega scan / print,tools,should,yes,yes,PR #2
 App lock (PIN or fingerprint),security,should,yes,no,
-Auto-capture in the normal scan mode,capture,should,yes,partial,only in Book mode
+Auto-capture in the normal scan mode,capture,should,yes,yes,takes a steady page once then waits for the next
+Live page outline while aiming the camera,capture,should,yes,yes,green when the page holds still
 Annotate PDF (text and highlight),edit,should,yes,no,
 More OCR languages,ocr,could,yes,no,English and Arabic today
 Translate / solve formulas / AI chat,tools,could,yes,partial,works with the user's own AI keys

@@ -304,3 +304,13 @@ button { transition: background-color 0.15s, transform 0.12s var(--ease), box-sh
   background: rgba(7, 8, 15, 0.82); color: #eef0fa; font-size: 13px; line-height: 1.4; backdrop-filter: blur(6px);
 }
 .glare-tip svg { flex: none; margin-top: 1px; color: #ffd166; }
+
+/* Live page outline on the camera: accent while aiming, green once the page holds still. */
+.cam-outline { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+.cam-outline polygon {
+  fill: color-mix(in srgb, var(--accent) 16%, transparent);
+  stroke: var(--accent); stroke-width: 3; stroke-linejoin: round;
+}
+.cam-outline circle { fill: #fff; stroke: var(--accent); stroke-width: 2.5; }
+.cam-outline.steady polygon { fill: rgba(61, 220, 151, 0.18); stroke: #3ddc97; }
+.cam-outline.steady circle { stroke: #3ddc97; }
