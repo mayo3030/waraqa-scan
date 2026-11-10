@@ -1,4 +1,5 @@
 import * as I from "../icons";
+import { toneOf } from "../lib/tones";
 import type { Mode } from "../lib/modes";
 import type { DocTool } from "./DocView";
 
@@ -76,7 +77,7 @@ export function FeatureSheet({ onMode, onDocTool, onClose }: { onMode(m: Mode): 
             <div className="tool-grid">
               {g.items.map((it) => (
                 <button key={it.label} className="tg-btn" onClick={() => (it.kind === "cam" ? onMode(it.mode) : onDocTool(it.tool))}>
-                  <span className="tg-ic">{it.icon}</span><span>{it.label}</span>
+                  <span className="tg-ic" data-tone={toneOf(it.label)}>{it.icon}</span><span>{it.label}</span>
                 </button>
               ))}
             </div>

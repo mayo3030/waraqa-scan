@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import * as I from "../icons";
+import { toneOf } from "../lib/tones";
 import type { Mode } from "../lib/modes";
 import type { DocTool } from "./DocView";
 
@@ -126,7 +127,7 @@ export function Tools({ onCamera, onImages, onFiles, onDocTool, onPdfFile }: Pro
             <h2>{g.title}</h2>
             <div className="tool-grid">
               {g.items.map((it) => {
-                const body = <><span className="tg-ic">{it.icon}</span><span>{it.label}</span></>;
+                const body = <><span className="tg-ic" data-tone={toneOf(it.label)}>{it.icon}</span><span>{it.label}</span></>;
                 if (it.kind === "images" || it.kind === "files" || it.kind === "file") {
                   const id = "tool-" + it.label.replace(/\W+/g, "-").toLowerCase();
                   const accept = it.kind === "images" ? "image/*" : it.kind === "files" ? "application/pdf,.pdf,image/*" : "application/pdf,.pdf";

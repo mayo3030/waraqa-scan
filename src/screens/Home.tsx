@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import * as I from "../icons";
+import { toneOf } from "../lib/tones";
 import { memoryOnly } from "../lib/store";
 import type { Mode } from "../lib/modes";
-import { UpdateButton } from "./UpdateButton";
+import { UpdateBanner, UpdateIcon } from "./Update";
 import { stamp, useDocs } from "./useDocs";
 import type { DocTool } from "./DocView";
 
@@ -53,10 +54,10 @@ export function Home({ rev, onOpen, onCamera, onImages, onFiles, onShare, onAllT
           <I.Search />
           <input id="doc-search" type="search" placeholder="Search" aria-label="Search names and scanned text" value={q} onChange={(e) => setQ(e.target.value)} />
         </label>
-        <UpdateButton />
+        <UpdateIcon />
       </header>
       <main className="page page-fab">
-        <UpdateButton look="banner" />
+        <UpdateBanner />
 
         {!q && (
           <section className="quick" aria-label="Quick actions">
@@ -65,19 +66,19 @@ export function Home({ rev, onOpen, onCamera, onImages, onFiles, onShare, onAllT
             </button>
             <label className="quick-btn" htmlFor="home-images">
               <input id="home-images" className="file-input" type="file" accept="image/*" multiple onChange={pickImages} />
-              <span className="quick-ic"><I.Images size={24} /></span><span>Import Images</span>
+              <span className="quick-ic" data-tone="sky"><I.Images size={24} /></span><span>Import Images</span>
             </label>
             <label className="quick-btn" htmlFor="home-files">
               <input id="home-files" className="file-input" type="file" accept="application/pdf,.pdf,image/*" multiple onChange={pickFiles} />
-              <span className="quick-ic"><I.Upload size={24} /></span><span>Import Files</span>
+              <span className="quick-ic" data-tone="blue"><I.Upload size={24} /></span><span>Import Files</span>
             </label>
             {QUICK.map((x) => (
               <button key={x.mode} className="quick-btn" onClick={() => onCamera(x.mode)}>
-                <span className="quick-ic">{x.icon}</span><span>{x.label}</span>
+                <span className="quick-ic" data-tone={toneOf(x.label)}>{x.icon}</span><span>{x.label}</span>
               </button>
             ))}
             <button className="quick-btn" onClick={onAllTools}>
-              <span className="quick-ic"><I.Tools size={24} /></span><span>All</span>
+              <span className="quick-ic" data-tone="amber"><I.Tools size={24} /></span><span>All</span>
             </button>
           </section>
         )}
@@ -128,6 +129,7 @@ export function Home({ rev, onOpen, onCamera, onImages, onFiles, onShare, onAllT
         )}
         {q && shown && shown.length === 0 && <p className="muted">No document matches “{q}”.</p>}
       </main>
+      <button className="fab" onClick={() => onCamera("scan")} aria-label="Scan"><I.Camera size={30} /></button>
     </>
   );
 }

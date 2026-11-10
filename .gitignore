@@ -10,3 +10,7 @@ tests/.build/
 install.log
 *.apk
 android/local.properties
+dist-e2e/
+e2e-results.json
+test-results/
+playwright-report/

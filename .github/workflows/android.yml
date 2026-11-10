@@ -55,6 +55,21 @@ jobs:
       - name: Run the unit tests
         run: npm test
 
+      # Every screen and flow is clicked through in a browser before anything is published.
+      - name: Run the end-to-end tests
+        run: |
+          npm run build:e2e
+          npx playwright install --with-deps chromium
+          npx playwright test
+
+      - name: Keep the failure traces
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: e2e-failures
+          path: test-results
+          retention-days: 7
+
       - name: Build the web app
         run: npm run build
         env:

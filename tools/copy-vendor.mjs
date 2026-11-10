@@ -12,4 +12,7 @@ for (const l of ["eng", "ara"])
   cpSync(`${nm}@tesseract.js-data/${l}/4.0.0_best_int/${l}.traineddata.gz`, `${v}tesseract/lang/${l}.traineddata.gz`);
 // Saved as .js: the Android app's file server may not send .mjs as JavaScript.
 cpSync(nm + "pdfjs-dist/build/pdf.worker.min.mjs", v + "pdf.worker.min.js");
+// Arabic-capable font for the invisible text layer of searchable PDFs.
+mkdirSync(v + "fonts", { recursive: true });
+cpSync(nm + "@expo-google-fonts/ibm-plex-sans-arabic/400Regular/IBMPlexSansArabic_400Regular.ttf", v + "fonts/plex-arabic.ttf");
 console.log("vendor files copied");

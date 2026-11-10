@@ -224,7 +224,16 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
 
   const capture = async () => {
     const v = video.current;
-    if (!v || live !== "on" || !v.videoWidth) return;
+    if (!v || live !== "on") return;
+    // A tap in the first moment, before the first frame arrives, waits for it instead of doing nothing.
+    if (!v.videoWidth) {
+      await new Promise<void>((res) => {
+        const done = () => res();
+        v.addEventListener("loadeddata", done, { once: true });
+        setTimeout(done, 2500);
+      });
+      if (!v.videoWidth) { notify({ text: "The camera is still starting. Try again in a moment." }); return; }
+    }
     if (prefs.doubleFocus) {
       const track = stream.current?.getVideoTracks()[0];
       const modes = ((track?.getCapabilities?.() ?? {}) as { focusMode?: string[] }).focusMode ?? [];

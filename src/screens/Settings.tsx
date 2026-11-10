@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import * as I from "../icons";
 import { PAPER } from "../lib/pdf";
 import type { Prefs } from "../lib/prefs";
-import { UpdateButton } from "./UpdateButton";
-import { canUpdate } from "../lib/updater";
+import { UpdateIcon, UpdateRow } from "./Update";
 import { memoryOnly } from "../lib/store";
 import { CameraSettings, ScanSettings } from "./ScanSettings";
 import { AiKeys } from "./AiKeys";
@@ -29,17 +28,17 @@ export function Settings({ prefs, setPrefs, docCount, notify, onChanged }: Props
     <>
       <header className="bar">
         <h1 className="bar-title">Me</h1>
-        <UpdateButton />
+        <UpdateIcon />
       </header>
       <main className="page">
         <section className="me-card">
           <I.Mark size={44} />
           <div>
             <b>Waraqa Scan</b>
-            <p className="muted small">Version {__APP_VERSION__}{canUpdate() ? ". Tap the arrows above to check for an update." : ""}</p>
+            <p className="muted small">Version {__APP_VERSION__}</p>
           </div>
         </section>
-        <UpdateButton look="row" />
+        <UpdateRow />
 
         <section className="set-group">
           <h2>Defaults</h2>

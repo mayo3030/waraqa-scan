@@ -24,6 +24,9 @@ export interface FolderRec {
 
 export const TAGS = ["ID Card", "Receipt", "Business Card", "Note", "Book", "Whiteboard", "Slides", "Contract", "Photo", "Formula", "Questions", "Count", "Card"] as const;
 
+/** One word the text reader found: text, then left, top, right, bottom as fractions of the page (0 to 1). Top and bottom are the line's. */
+export type OcrWord = [string, number, number, number, number];
+
 export interface PageRec {
   id: string;
   docId: string;
@@ -36,6 +39,7 @@ export interface PageRec {
   thumb: string; // small JPEG data URL
   width: number;
   height: number;
+  words?: OcrWord[]; // where the read text sits, for searchable PDFs
 }
 
 interface Schema extends DBSchema {

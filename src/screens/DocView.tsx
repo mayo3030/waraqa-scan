@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import * as I from "../icons";
+import { toneOf } from "../lib/tones";
 import type { Toast } from "../App";
 import {
-  copyPages, deleteDoc, deletePage, getDoc, getPages, listFolders, newDoc, putDoc, replaceResult, TAGS,
-  type DocRec, type FolderRec, type PageRec,
+  copyPages, deleteDoc, deletePage, getDoc, getPages, listFolders, newDoc, putDoc, replaceResult, savePage, TAGS,
+  type DocRec, type FolderRec, type OcrWord, type PageRec,
 } from "../lib/store";
 import { buildPdf, PAPER, type PaperSize, type PdfOptions } from "../lib/pdf";
 import { Capacitor } from "@capacitor/core";
 import { canShareFiles, safeName, saveFile, saveMany, shareNative } from "../lib/save";
-import { OCR_LANGS, recognize, recognizeWithClaude, type OcrLang } from "../lib/ocr";
+import { OCR_LANGS, recognizeDetailed, recognizeWithClaude, type OcrLang } from "../lib/ocr";
 import { toDocx, toLatexDocx, toLongImage, toPptx, toReviewDocx, toXlsx } from "../lib/exporters";
 import { aiPhoto, docContext, formulaToLatex, MissingKey, openRouterChat, type ChatMsg } from "../lib/ai";
 import { getSecret } from "../lib/secrets";
@@ -205,6 +206,7 @@ export function DocView(props: Props) {
 
   const makePdf = () => buildPdf(pages, paper, doc.name, {
     compress: opts.compress, watermark: opts.watermark?.trim() || undefined, password: opts.password || undefined,
+    text: textPages(text, pages.length),
   });
 
   const exportPdf = async () => {
@@ -229,7 +231,7 @@ export function DocView(props: Props) {
   const print = async () => {
     setWorking("Preparing to print");
     try {
-      const blob = await buildPdf(pages, paper, doc.name, { watermark: opts.watermark?.trim() || undefined });
+      const blob = await buildPdf(pages, paper, doc.name, { watermark: opts.watermark?.trim() || undefined, text: textPages(text, pages.length) });
       setWorking(null);
       await printPdf(blob, safeName(doc.name));
     } catch (e) { fail(e, "The print file"); }
@@ -264,7 +266,15 @@ export function DocView(props: Props) {
       const onP = (label: string, value: number) => setOcr({ label, value });
       let parts: string[] | null;
       try {
-        parts = await recognize(imgs, lang, onP);
+        const read = await recognizeDetailed(imgs, lang, onP);
+        parts = read.map((r) => r.text);
+        // Keep where each word sits, so PDFs made from these pages can be searched.
+        const withWords = pages.map((p, i) => ({
+          ...p,
+          words: (read[i]?.words ?? []).map(([t, x0, y0, x1, y1]): OcrWord => [t, x0 / p.width, y0 / p.height, x1 / p.width, y1 / p.height]),
+        }));
+        for (const p of withWords) await savePage(p);
+        setPages(withWords);
       } catch (err) {
         parts = await recognizeWithClaude(imgs, lang, onP);
         if (!parts) throw err instanceof Error ? err : new Error("Text reading could not start in this view");
@@ -588,7 +598,7 @@ export function DocView(props: Props) {
                 <div className="tool-grid">
                   {TOOLS.map((x) => (
                     <button key={x.t} className="tg-btn" onClick={() => openTool(x.t)}>
-                      <span className="tg-ic">{x.icon}</span><span>{x.label}</span>
+                      <span className="tg-ic" data-tone={toneOf(x.label)}>{x.icon}</span><span>{x.label}</span>
                     </button>
                   ))}
                 </div>
@@ -621,6 +631,10 @@ export function DocView(props: Props) {
                       <span><I.Compress size={18} /> Smaller file (lower quality)</span>
                       <input type="checkbox" checked={!!opts.compress} onChange={(e) => setOpts({ ...opts, compress: e.target.checked })} />
                     </label>
+                    <div className="search-row">
+                      <span><I.Search size={18} /> {text.trim() ? "Searchable: the read text goes into the PDF" : "Not searchable yet"}</span>
+                      {!text.trim() && (ocr ? <span className="muted small">{ocr.label}</span> : <button className="link-btn" onClick={runOcr}>Read text first</button>)}
+                    </div>
                   </>
                 )}
                 {sheet.focus === "print" ? busyBtn("Print", print) : (
@@ -783,9 +797,9 @@ export function DocView(props: Props) {
                   {pages.map((p, i) => {
                     const on = picks.has(i);
                     return (
-                      <button key={p.id} className={"pick-card" + (on ? " on" : "")} aria-pressed={on}
+                      <button key={p.id} className={"pick-card" + (on ? " on" : "")} aria-pressed={on} aria-label={`Page ${i + 1}`}
                         onClick={() => { const s = new Set(picks); if (on) s.delete(i); else s.add(i); setPicks(s); }}>
-                        <img src={p.thumb} alt={`Page ${i + 1}`} /><span className="mono">{i + 1}</span>
+                        <img src={p.thumb} alt="" /><span className="mono">{i + 1}</span>
                         {on && <span className="tick on"><I.Check size={14} /></span>}
                       </button>
                     );

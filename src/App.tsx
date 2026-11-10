@@ -342,7 +342,7 @@ export function App() {
           onAllDocs={() => setRoute({ name: "tab", tab: "docs" })}
         />
       )}
-      {route.name === "tab" && route.tab === "docs" && <Documents {...tabProps} onOpen={(id) => openDoc(id)} onChanged={bump} onImages={(b) => openPhoto(b)} onFiles={importFiles} />}
+      {route.name === "tab" && route.tab === "docs" && <Documents {...tabProps} onOpen={(id) => openDoc(id)} onChanged={bump} onImages={(b) => openPhoto(b)} onFiles={importFiles} onScan={() => setRoute({ name: "camera", mode: "scan" })} />}
       {route.name === "tab" && route.tab === "tools" && (
         <Tools
           onCamera={(mode) => setRoute({ name: "camera", mode })}
@@ -410,9 +410,6 @@ export function App() {
         <EraseScreen page={route.page} label={route.label} notify={notify} onDone={(changed) => { if (changed) bump(); openDoc(route.docId); }} />
       )}
 
-      {route.name === "tab" && (route.tab === "home" || route.tab === "docs") && (
-        <button className="fab" onClick={() => setRoute({ name: "camera", mode: "scan" })} aria-label="Scan"><I.Camera size={30} /></button>
-      )}
       {showTabs && (
         <nav className="tabbar" aria-label="Main">
           <TabBtn on={route.tab === "home"} label="Home" icon={<I.Home />} onClick={() => setRoute({ name: "tab", tab: "home" })} />
