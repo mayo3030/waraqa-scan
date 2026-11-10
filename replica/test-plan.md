@@ -2,7 +2,7 @@
 
 Build: the commit after v1.2.14  Date: 2026-11-09  Env: local build with the test camera, fresh storage for every test
 
-Automatic cases run on every push, before the .apk is built: `npm test` (9 unit files) and `npx playwright test` (33 end-to-end tests, each failing on any console error).
+Automatic cases run on every push, before the .apk is built: `npm test` (9 unit files; page detection is measured on 7 photos) and `npx playwright test` (38 end-to-end tests, each failing on any console error).
 
 | case | flow | type | steps | expected | auto | result |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -50,6 +50,12 @@ Automatic cases run on every push, before the .apk is built: `npm test` (9 unit 
 | F12-N1 | | negative: wrong or cut-short file | pick each | refused with a message, nothing changes | e2e backup + unit backup | pass |
 | A11Y-1 | every tab | accessibility scan, dark and light | axe on Home, All Documents, Tools, Me | no serious or critical findings | e2e smoke | pass |
 | RESP-1 | every tab | small phone, 320px wide | open each tab | nothing scrolls sideways | e2e smoke | pass |
+| SAFE-1 | system bars | every tab and its sheets, with a 36px status bar and a 48px navigation bar | open each, select, delete question, sort | nothing readable or tappable under either bar | e2e safe-area | pass (BUG-008) |
+| SAFE-2 | | scanning screens and document sheets | corners, clean up, document, PDF, Text, Tools, page, sign | same; sheets start below the status bar | e2e safe-area | pass (BUG-008, BUG-009) |
+| SAFE-3 | | camera, explainer, All features, settings | open each | same | e2e safe-area | pass (BUG-013) |
+| SAFE-4 | | update sheet and Home strip | open with a newer release | same | e2e safe-area | pass |
+| F01-E6 | scan a page | edge: a card held in a hand, thumb over an edge | import the hand photo | corners within 2% of the card's real corners | e2e safe-area + unit pipeline | pass (BUG-010) |
+| F01-E7 | | edge: a tall page | go to Clean up | whole page shows above the filters | e2e safe-area | pass (BUG-012) |
 | F08-M1 | real camera | manual | focus, flash, HD, level, auto capture | | manual | not run: needs a phone |
 | F09-M1 | update over the old install | manual | install the new .apk over the old one | documents kept | manual | not run: needs a phone |
 | F10-M1 | Android install screen | manual | Download and install on the phone | Android's installer opens | manual | not run: needs a phone |

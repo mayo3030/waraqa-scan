@@ -252,3 +252,26 @@ button { transition: background-color 0.15s, transform 0.12s var(--ease), box-sh
 
 .search-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; font-size: 14.5px; }
 .search-row > span:first-child { display: inline-flex; align-items: center; gap: 8px; }
+
+/* ---------- System bars ---------- */
+/* The strip behind the navigation bar takes the colour of the bottom bars above it. */
+.app::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: var(--sab); background: var(--surface); pointer-events: none; }
+.dock { background: var(--surface); }
+.crop-status, .filter-panel { background: var(--bg); }
+
+/* Touch screens keep :hover on the last thing tapped, which left buttons looking pressed. */
+@media (hover: none) {
+  .tool:hover:not(:disabled), .icon-btn:hover, .tg-btn:hover, .features .tg-btn:hover, .doc-list .doc-row:hover { background: transparent; }
+  .doc-row:hover { border-color: var(--line); }
+  .btn-primary:hover:not(:disabled) { filter: none; }
+}
+.tool { border-radius: 12px; min-width: 60px; padding: 6px 8px; }
+.tool:active:not(:disabled) { background: var(--surface-2); transform: scale(0.95); }
+.dock .tool-row { gap: 6px; }
+
+/* The cleaned-up page always fits its stage, however tall or wide the page is. */
+.filter-stage { position: relative; }
+.filter-stage .sheet {
+  position: absolute; inset: 16px; margin: auto;
+  max-width: calc(100% - 32px); max-height: calc(100% - 32px); border-radius: 4px;
+}

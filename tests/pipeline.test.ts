@@ -33,7 +33,8 @@ async function main() {
     const t1 = Date.now();
     const errs = det.quad.map((p, i) => dist(p, { x: truth[name][i][0], y: truth[name][i][1] }));
     const maxErr = Math.max(...errs);
-    const ok = det.found && maxErr < Math.max(src.width, src.height) * 0.02;
+    // Within 1% of the longer side: about 4 px on the phone's screen.
+    const ok = det.found && maxErr < Math.max(src.width, src.height) * 0.01;
     if (!ok) failed++;
     const { w, h } = outputSize(det.quad);
     const flat = warpPerspective(src, det.quad, w, h);
