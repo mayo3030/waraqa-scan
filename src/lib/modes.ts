@@ -35,6 +35,7 @@ export interface ModeOpts {
   restore?: "restore" | "colorize";
   ai?: boolean; // Restore Photo: use the online AI models (Replicate)
   paper?: "a4" | "letter"; // ID sheet paper
+  deglare?: boolean; // ID cards: two photos of each side, joined without the flash glare
 }
 
 export interface ModeInfo {

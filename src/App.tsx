@@ -14,6 +14,7 @@ import { EraseScreen } from "./screens/Erase";
 import { CountScreen } from "./screens/Count";
 import { GreetingScreen } from "./screens/Greeting";
 import { quickSave } from "./lib/quicksave";
+import { joinPairs } from "./lib/glarejoin";
 import { lockOrientation } from "./lib/device";
 import { useDocs } from "./screens/useDocs";
 import { blobToRaster, rasterToBlob } from "./lib/io";
@@ -47,6 +48,7 @@ export interface Session {
   stamps?: string[][]; // timestamp lines, one per photo of the session
   fresh?: string[]; // ids of pages saved so far in this session
   opts?: ModeOpts; // choices made on the camera
+  flat?: boolean; // photos are already flat cards (glare removal joined them)
 }
 
 type Tab = "home" | "docs" | "tools" | "me";
@@ -64,7 +66,7 @@ type Route =
 
 export interface Toast { text: string; tone?: "error" }
 
-interface Extra { mode?: Mode; stamps?: string[][]; fresh?: string[]; opts?: ModeOpts }
+interface Extra { mode?: Mode; stamps?: string[][]; fresh?: string[]; opts?: ModeOpts; flat?: boolean }
 
 export function App() {
   const [route, setRoute] = useState<Route>(() => (readPrefs().startCamera ? { name: "camera", mode: "scan" } : { name: "tab", tab: "home" }));
@@ -120,6 +122,9 @@ export function App() {
         if (page) {
           quad = page.quad;
           autoFound = true;
+        } else if (extra.flat) {
+          quad = fullQuad(src.width, src.height, 0);
+          autoFound = true;
         } else if (!prefs.autoBorders) {
           quad = fullQuad(src.width, src.height, 0);
         } else {
@@ -162,7 +167,7 @@ export function App() {
   const afterSave = useCallback(
     async (s: Session, docId: string) => {
       bump();
-      const extra: Extra = { mode: s.mode, stamps: s.stamps, fresh: s.fresh, opts: s.opts };
+      const extra: Extra = { mode: s.mode, stamps: s.stamps, fresh: s.fresh, opts: s.opts, flat: s.flat };
       if (s.queue.length) {
         notify({ text: `Page saved. ${s.queue.length} more to go` });
         openPhoto(s.queue, docId, undefined, extra);
@@ -196,7 +201,23 @@ export function App() {
   };
 
   const onShots = useCallback(async (shots: Shots, docId?: string) => {
-    const { blobs, mode } = shots;
+    const { mode } = shots;
+    let { blobs } = shots;
+    let flat = false;
+    // ID cards without glare: two photos of each side become one clean flat card per side.
+    if (mode === "idcard" && shots.opts?.deglare && blobs.length >= 2) {
+      setBusy("Removing the flash glare");
+      await yieldToPaint();
+      try {
+        blobs = await joinPairs(blobs, prefs.hd, setBusy);
+        flat = true;
+      } catch {
+        notify({ text: "The glare could not be removed, the first photo of each side is used", tone: "error" });
+        blobs = blobs.filter((_, i) => i % 2 === 0);
+      } finally {
+        setBusy(null);
+      }
+    }
     if (mode === "idphoto" || mode === "count" || mode === "greeting") {
       setBusy("Opening the photo");
       try {
@@ -228,7 +249,7 @@ export function App() {
       setBusy("Saving");
       await yieldToPaint();
       try {
-        const r = await quickSave(blobs, docId, mode, { hd: prefs.hd, autoBorders: prefs.autoBorders }, setBusy);
+        const r = await quickSave(blobs, docId, mode, { hd: prefs.hd, autoBorders: prefs.autoBorders && !flat }, setBusy);
         bump();
         if (mode === "scan") { setBusy(null); notify({ text: blobs.length > 1 ? `${blobs.length} pages saved` : "Page saved" }); openDoc(r.docId); return; }
         await finishMode(mode, r.docId, r.fresh, shots.stamps, shots.opts);
@@ -238,7 +259,7 @@ export function App() {
       }
       return;
     }
-    openPhoto(blobs, docId, undefined, { mode, stamps: shots.stamps, opts: shots.opts });
+    openPhoto(blobs, docId, undefined, { mode, stamps: shots.stamps, opts: shots.opts, flat });
   }, [notify, openPhoto, prefs.adjustEach, prefs.hd, prefs.autoBorders, prefs.paper, bump]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Import Files: PDFs and images go in as they are, without cropping. */

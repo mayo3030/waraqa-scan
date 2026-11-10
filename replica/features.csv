@@ -21,4 +21,5 @@ Account and cloud sync between devices,cloud,could,yes,skip,needs a server; revi
 Fax / share links / team workspaces,cloud,could,yes,skip,services of the original company rather than app features
 AI HD upscale (2x / 4x) with face fix,tools,could,yes,yes,Replicate with the user's key
 Remove background (AI) with new colour or see-through PNG,tools,could,no,yes,Waraqa extra
+Remove flash glare on ID cards (two photos per side joined),capture,could,no,yes,Waraqa extra; works offline
 VIN reading from a scanned page,tools,could,no,yes,Waraqa extra

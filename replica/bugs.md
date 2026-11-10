@@ -206,6 +206,23 @@ Evidence: Mina's screenshot, 2026-11-10.
 Suspected cause: the check asked GitHub for the "latest release", which leaves pre-releases out, so test builds were invisible; the newest normal release (1.2.14) is older than any test build.
 Status: fixed. The app reads the release list; a test install follows test and normal builds, a normal install only normal ones. Unit test tests/updater.test.ts and two end-to-end cases.
 
+### BUG-015: Flash glare burns part of an ID card to white
+
+- Severity: S2
+- Flow / case: F05 (ID Cards)
+- Screen: Clean up
+- Build: v1.2.x-test  Device: Mina's phone (a real ID photographed with the flash)
+
+Steps
+1. ID Cards, take the front of a laminated card with the flash on.
+2. Go to Clean up.
+
+Expected: the whole card readable, no white patch.
+Actual: a white patch where the flash hit. No filter can bring back what the shine burned to white in one photo.
+
+Fix: Remove glare (on by default in ID Cards). The camera asks for two photos of each side, tilting the phone between them. Each pair is found, flattened to one size, lined up tile by tile and joined: every spot comes from the photo without the shine. When it is off, Clean up shows a tip on a card with glare. Tests: tests/deglare.test.ts, e2e/glare.spec.ts.
+Status: fixed
+
 ## To check on a phone
 
 Not reproduced here because they need a real device. They are the manual list in the plan.
@@ -213,6 +230,7 @@ Not reproduced here because they need a real device. They are the manual list in
 - The system bars on the phone itself: the test uses a 36px and a 48px bar; a phone with a different bar or gesture navigation should look the same.
 - Page detection on real photos. The test photos are drawn, not taken; real ones that fail should be added to tests/fixtures.
 - The real camera: focus, flash, HD, the spirit level, auto capture in Book.
+- Remove glare on real cards: two hand-held photos with the flash, tilted differently, should give one card with no white patch and no double edges.
 - Share sheet, print, saving the backup file to Drive.
 - Update download and Android's install screen; installing over an older build signed with another key.
 - Arabic text reading on real paper, and Arabic search inside an exported PDF in the phone's PDF viewer.

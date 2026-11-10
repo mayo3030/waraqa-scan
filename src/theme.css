@@ -293,3 +293,14 @@ button { transition: background-color 0.15s, transform 0.12s var(--ease), box-sh
 .bg-chip { position: relative; }
 .bg-chip .dot { width: 16px; height: 16px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18); }
 .pick-card.on { box-shadow: 0 0 0 3px var(--accent); }
+
+/* Remove glare: switch on the ID intro, and the tip over a card with flash glare. */
+.glare-row { width: 100%; text-align: start; }
+.glare-row .switch-label { display: grid; gap: 2px; }
+.glare-row small { color: var(--muted); font-size: 12.5px; line-height: 1.35; }
+.glare-tip {
+  position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 1; margin: 0;
+  display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: 14px;
+  background: rgba(7, 8, 15, 0.82); color: #eef0fa; font-size: 13px; line-height: 1.4; backdrop-filter: blur(6px);
+}
+.glare-tip svg { flex: none; margin-top: 1px; color: #ffd166; }

@@ -7,6 +7,7 @@ import { finishAsync, flattenAsync } from "../lib/engine";
 import { rasterThumb, rasterToBlob, rasterToCanvas, shrink } from "../lib/io";
 import { defaultName, newId, putDoc, savePage } from "../lib/store";
 import type { Raster } from "../lib/geometry";
+import { findGlare } from "../lib/deglare";
 
 interface Props {
   s: Session;
@@ -35,6 +36,8 @@ export function FilterScreen({ s, notify, onBack, onSaved }: Props) {
   }, [s.src, s.quad, rotation, notify]);
 
   const preview = useMemo(() => (flat ? shrink(flat, 1000) : null), [flat]);
+  // Shiny cards: say when the flash burned part of it, and how to get a clean copy.
+  const glare = useMemo(() => !!flat && s.mode === "idcard" && !s.flat && findGlare(flat).found, [flat, s.mode, s.flat]);
   const swatches = useMemo(() => {
     if (!flat) return {} as Record<string, string>;
     const tiny = shrink(flat, 150);
@@ -115,6 +118,12 @@ export function FilterScreen({ s, notify, onBack, onSaved }: Props) {
       </header>
       <div className="filter-stage">
         {flat ? <canvas ref={view} className="sheet" /> : <p className="stage-wait">Preparing the page…</p>}
+        {glare && (
+          <p className="glare-tip" role="note">
+            <I.FlashOff size={18} />
+            <span>Flash glare on the card. For a clean copy, turn on <b>Remove glare</b> in ID Cards: take 2 photos of each side, tilting the phone a little.</span>
+          </p>
+        )}
       </div>
       <div className="filter-panel">
         <div className="swatches" role="radiogroup" aria-label="Filter" ref={(el) => {

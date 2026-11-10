@@ -74,9 +74,10 @@ test("ID card: front and back become one page", async ({ page }) => {
   await page.getByRole("button", { name: "ID Cards" }).click();
   const intro = page.getByRole("dialog", { name: "ID cards" });
   await intro.getByRole("radio", { name: "Driver License" }).click();
+  await intro.getByRole("checkbox", { name: /Remove glare/ }).uncheck();
   await intro.getByRole("button", { name: "Make it now" }).click();
   const shutter = page.getByRole("button", { name: "Take photo" });
-  await expect(page.getByText("Front side inside the frame")).toBeVisible();
+  await expect(page.getByText("Front side inside the frame", { exact: true })).toBeVisible();
   await shutter.click();
   await expect(page.getByText("Now the back")).toBeVisible({ timeout: 30_000 });
   await shutter.click();

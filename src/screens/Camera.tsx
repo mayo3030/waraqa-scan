@@ -87,6 +87,7 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
   const [preset, setPreset] = useState<IdPreset>("general");
   const [watermark, setWatermark] = useState("");
   const [idPaper, setIdPaper] = useState<"a4" | "letter">("a4");
+  const [noGlare, setNoGlare] = useState(() => { try { return localStorage.getItem("waraqa-noglare") !== "0"; } catch { return true; } });
   const [restoreKind, setRestoreKind] = useState<"restore" | "colorize">("restore");
   const [aiOn, setAiOn] = useState(false);
   const [auto, setAuto] = useState(false); // book: take a photo after each page turn
@@ -98,8 +99,15 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
 
   const info = modeInfo(mode);
   const need = mode === "idcard" ? idPreset(preset).sides : info.shots === "two" ? 2 : info.shots === "one" ? 1 : 0; // 0: any number
-  const multi = need === 2 || mode === "mega" || (info.shots === "many" && (batch || auto));
-  const opts: ModeOpts = { id: preset, watermark: watermark.trim() ? `For ${watermark.trim()} use only` : undefined, paper: idPaper, restore: restoreKind, ai: aiOn };
+  // Remove glare: two photos of each card side, joined later without the flash shine.
+  const perSide = mode === "idcard" && noGlare ? 2 : 1;
+  const total = need * perSide; // 0: any number
+  const multi = total >= 2 || mode === "mega" || (info.shots === "many" && (batch || auto));
+  const opts: ModeOpts = { id: preset, watermark: watermark.trim() ? `For ${watermark.trim()} use only` : undefined, paper: idPaper, restore: restoreKind, ai: aiOn, deglare: mode === "idcard" && noGlare };
+  const toggleGlare = (on: boolean) => {
+    setNoGlare(on);
+    try { localStorage.setItem("waraqa-noglare", on ? "1" : "0"); } catch { /* not kept */ }
+  };
 
   // Start (and restart on HD change) the back camera.
   useEffect(() => {
@@ -227,12 +235,12 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
   const finish = useCallback((list: Shot[]) => {
     if (!list.length) return;
     onShots({ blobs: list.map((s) => s.blob), mode, stamps: mode === "timestamp" ? list.map((s) => s.stamp ?? []) : undefined, opts });
-  }, [mode, onShots, opts.id, opts.watermark, opts.paper, opts.restore, opts.ai]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mode, onShots, opts.id, opts.watermark, opts.paper, opts.restore, opts.ai, opts.deglare]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addShots = (blobs: Blob[]) => {
     const made = blobs.map((blob) => ({ blob, url: URL.createObjectURL(blob), stamp: stampNow() }));
     const next = [...shots, ...made];
-    if (need === 1 || (!multi && info.shots === "many") || (need === 2 && next.length >= 2)) {
+    if ((total > 0 && next.length >= total) || (!multi && info.shots === "many")) {
       finish(next);
       return;
     }
@@ -310,9 +318,15 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
     setIntro(hasIntro(m));
   };
 
+  function idPrompt() {
+    const side = need === 1 ? "Photo page" : Math.floor(shots.length / perSide) === 0 ? "Front side" : "Back side";
+    if (perSide === 1) return need === 1 ? "Photo page inside the frame" : shots.length ? "Now the back" : "Front side inside the frame";
+    return shots.length % 2 === 0 ? `${side} inside the frame (1 of 2)` : "Same side again, tilt the phone a little (2 of 2)";
+  }
+
   const prompt =
     intro ? null :
-    mode === "idcard" ? (need === 1 ? "Photo page inside the frame" : shots.length ? "Now the back" : "Front side inside the frame") :
+    mode === "idcard" ? idPrompt() :
     mode === "formula" ? "Fit the formulas in the frame, you can crop next" :
     mode === "count" ? "Hold the phone above the objects" :
     mode === "book" && auto ? (shots.length ? `${shots.length} taken. Turn the page and hold still` : "Hold still on the first spread") :
@@ -388,6 +402,13 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
             </div>
             <IdSheetArt passport={preset === "passport"} mark={watermark.trim()} />
             <p className="small">{need === 1 ? "Take the photo page. It goes on one page at real size, ready to print." : "Take the front, then the back. Both sides go on one page at real size, ready to print."}</p>
+            <label className="switch-row glare-row">
+              <span className="switch-label">
+                <span><I.FlashOff size={18} /> Remove glare</span>
+                <small>{need === 1 ? "2 photos of the page" : "2 photos of each side"}, tilt a little between them. The flash shine is taken out.</small>
+              </span>
+              <input type="checkbox" checked={noGlare} onChange={(e) => toggleGlare(e.target.checked)} />
+            </label>
             <label className="field-inline" htmlFor="id-wm">
               <span>For</span>
               <input id="id-wm" className="field" placeholder="bank, visa, rental" value={watermark} onChange={(e) => setWatermark(e.target.value)} />
@@ -461,13 +482,13 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
           )
         ) : <span className="shutter shutter-idle" aria-hidden="true"><I.Qr size={30} /></span>}
         <div className="cam-side cam-side-end">
-          {shots.length > 0 && need !== 2 ? (
+          {shots.length > 0 && total < 2 ? (
             <button className="btn btn-primary cam-done" onClick={() => finish(shots)}>
               <I.Check /> Done
             </button>
           ) : shots.length === 0 && prefs.showImport && !intro ? (
             <label className="cam-btn cam-import" htmlFor="cam-import" aria-label="Import images">
-              <input id="cam-import" className="file-input" type="file" accept="image/*" multiple={need !== 1} onChange={fromFiles} />
+              <input id="cam-import" className="file-input" type="file" accept="image/*" multiple={total !== 1} onChange={fromFiles} />
               <I.Images />
               <span>Import Images</span>
             </label>
