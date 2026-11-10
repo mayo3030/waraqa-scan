@@ -352,7 +352,7 @@ export function App() {
           onPdfFile={pdfFileTool}
         />
       )}
-      {route.name === "tab" && route.tab === "me" && <MeTab rev={rev} prefs={prefs} setPrefs={setPrefs} />}
+      {route.name === "tab" && route.tab === "me" && <MeTab rev={rev} prefs={prefs} setPrefs={setPrefs} notify={notify} onChanged={bump} />}
 
       {route.name === "doc" && (
         <DocView
@@ -451,9 +451,11 @@ function TabBtn({ on, label, icon, onClick }: { on: boolean; label: string; icon
   );
 }
 
-function MeTab({ rev, prefs, setPrefs }: { rev: number; prefs: ReturnType<typeof usePrefs>[0]; setPrefs: ReturnType<typeof usePrefs>[1] }) {
+function MeTab({ rev, prefs, setPrefs, notify, onChanged }: {
+  rev: number; prefs: ReturnType<typeof usePrefs>[0]; setPrefs: ReturnType<typeof usePrefs>[1]; notify(t: Toast): void; onChanged(): void;
+}) {
   const { rows } = useDocs(rev);
-  return <Settings prefs={prefs} setPrefs={setPrefs} docCount={rows?.length ?? 0} />;
+  return <Settings prefs={prefs} setPrefs={setPrefs} docCount={rows?.length ?? 0} notify={notify} onChanged={onChanged} />;
 }
 
 const TOOL_NAMES: Partial<Record<DocTool, string>> = {

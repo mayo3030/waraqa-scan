@@ -201,6 +201,25 @@ export async function newDoc(name: string, extra: Partial<DocRec> = {}): Promise
   return doc;
 }
 
+// ---- Backup and restore ----
+
+/** Everything on the phone, for a backup file. */
+export async function dumpAll(): Promise<{ docs: DocRec[]; folders: FolderRec[]; pages: PageRec[] }> {
+  const d = await db();
+  const [docs, folders, pages] = await Promise.all([d.getAll("docs"), d.getAll("folders"), d.getAll("pages")]);
+  return { docs, folders, pages };
+}
+
+/** Writes restored records in one go: either all of them land or none do. */
+export async function writeRestored(r: { docs: DocRec[]; folders: FolderRec[]; pages: PageRec[] }) {
+  const d = await db();
+  const tx = d.transaction(["docs", "pages", "folders"], "readwrite");
+  for (const f of r.folders) await tx.objectStore("folders").put(f);
+  for (const p of r.pages) await tx.objectStore("pages").put(p);
+  for (const doc of r.docs) await tx.objectStore("docs").put(doc);
+  await tx.done;
+}
+
 /** Puts a page at a new index inside its document. */
 export async function setPageOrder(doc: DocRec, pageIds: string[]) {
   await putDoc({ ...doc, pageIds, updatedAt: Date.now() });

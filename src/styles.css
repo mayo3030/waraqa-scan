@@ -451,6 +451,10 @@ label.btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; 
 .set-group { display: grid; gap: 6px; }
 .set-row { display: grid; gap: 8px; font-size: 14.5px; padding: 6px 0; }
 .seg-sm button { height: 34px; font-size: 13.5px; }
+.backup-row { grid-template-columns: 1fr 1fr; }
+@media (max-width: 360px) { .backup-row { grid-template-columns: 1fr; } }
+label.btn.disabled { opacity: 0.5; pointer-events: none; }
+.btn:disabled { opacity: 0.5; }
 
 /* ---------- Document tools ---------- */
 .pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 10px; }
