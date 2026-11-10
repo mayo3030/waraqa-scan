@@ -10,4 +10,6 @@ for (const f of ["tesseract-core-lstm.wasm.js", "tesseract-core-simd-lstm.wasm.j
   cpSync(nm + "tesseract.js-core/" + f, v + "tesseract/core/" + f);
 for (const l of ["eng", "ara"])
   cpSync(`${nm}@tesseract.js-data/${l}/4.0.0_best_int/${l}.traineddata.gz`, `${v}tesseract/lang/${l}.traineddata.gz`);
+// Saved as .js: the Android app's file server may not send .mjs as JavaScript.
+cpSync(nm + "pdfjs-dist/build/pdf.worker.min.mjs", v + "pdf.worker.min.js");
 console.log("vendor files copied");

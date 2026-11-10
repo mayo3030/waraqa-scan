@@ -1,0 +1,22 @@
+feature,area,priority,original,clone,notes
+Camera scan with edge detection and perspective fix,capture,must,yes,yes,
+Filters (Clean / B&W / Gray) with brightness contrast and rotate,edit,must,yes,yes,
+Multi-page document: reorder / delete / re-edit pages,documents,must,yes,yes,
+Export PDF and JPG and share,export,must,yes,yes,
+OCR English and Arabic with search in text,ocr,must,yes,yes,
+Import images and PDF,capture,must,yes,yes,
+Folders / tags / sort / multi-select / merge,documents,must,yes,yes,PR #2
+Signature / watermark / PDF password / PDF compress,edit,must,yes,yes,PR #2
+Backup and restore of all documents,documents,must,yes,yes,one .waraqa file; restore never overwrites
+Searchable PDF (text layer over the image),export,must,yes,no,pdf.ts writes images only
+Camera modes: ID card / book / receipt / whiteboard / QR,capture,should,yes,yes,PR #2
+Convert to Word / Excel / PowerPoint,export,should,yes,yes,tables are guessed from the text
+ID photo / smart erase / mega scan / print,tools,should,yes,yes,PR #2
+App lock (PIN or fingerprint),security,should,yes,no,
+Auto-capture in the normal scan mode,capture,should,yes,partial,only in Book mode
+Annotate PDF (text and highlight),edit,should,yes,no,
+More OCR languages,ocr,could,yes,no,English and Arabic today
+Translate / solve formulas / AI chat,tools,could,yes,partial,works with the user's own AI keys
+Account and cloud sync between devices,cloud,could,yes,skip,needs a server; revisit after launch
+Fax / share links / team workspaces,cloud,could,yes,skip,services of the original company rather than app features
+VIN reading from a scanned page,tools,could,no,yes,Waraqa extra

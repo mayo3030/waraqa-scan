@@ -115,13 +115,13 @@ export async function detectAsync(src: Raster): Promise<Detection> {
   return r.detection;
 }
 
-export async function flattenAsync(src: Raster, quad: Quad, rotation: number): Promise<Raster> {
+export async function flattenAsync(src: Raster, quad: Quad, rotation: number, maxSide = 2000): Promise<Raster> {
   try {
-    const r = await ask({ op: "flatten", src, quad, rotation }, 20000);
+    const r = await ask({ op: "flatten", src, quad, rotation, maxSide }, 30000);
     if (!r.raster) throw new Error("No image");
     return asRaster(r.raster);
   } catch {
-    const r = await locally({ op: "flatten", src, quad, rotation });
+    const r = await locally({ op: "flatten", src, quad, rotation, maxSide });
     return r.raster!;
   }
 }
@@ -135,4 +135,19 @@ export async function finishAsync(src: Raster, filter: FilterKind, adjust: Adjus
     const r = await locally({ op: "finish", src, filter, adjust });
     return r.raster!;
   }
+}
+
+/** Any other image job (tools, stitching, sheets). Falls back to this thread. */
+export async function runAsync(job: Job, ms = 60000): Promise<JobResult> {
+  let r: JobResult;
+  try {
+    r = await ask(job, ms);
+  } catch {
+    r = await locally(job);
+  }
+  return {
+    ...r,
+    raster: r.raster ? asRaster(r.raster) : undefined,
+    rasters: r.rasters?.map(asRaster),
+  };
 }

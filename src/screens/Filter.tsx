@@ -28,7 +28,7 @@ export function FilterScreen({ s, notify, onBack, onSaved }: Props) {
   useEffect(() => {
     let cancel = false;
     setFlat(null);
-    flattenAsync(s.src, s.quad, rotation)
+    flattenAsync(s.src, s.quad, rotation, s.hd ? 3200 : 2000)
       .then((r) => { if (!cancel) setFlat(r); })
       .catch(() => { if (!cancel) notify({ text: "The page could not be prepared", tone: "error" }); });
     return () => { cancel = true; };
@@ -65,8 +65,9 @@ export function FilterScreen({ s, notify, onBack, onSaved }: Props) {
         const now = Date.now();
         await putDoc({ id: docId, name: defaultName(), createdAt: now, updatedAt: now, pageIds: [] });
       }
+      const pid = s.page?.id ?? newId();
       await savePage({
-        id: s.page?.id ?? newId(),
+        id: pid,
         docId,
         original: s.original,
         quad: s.quad,
@@ -78,7 +79,7 @@ export function FilterScreen({ s, notify, onBack, onSaved }: Props) {
         width: out.width,
         height: out.height,
       });
-      onSaved({ ...s, docId }, docId);
+      onSaved({ ...s, docId, fresh: s.page ? s.fresh : [...(s.fresh ?? []), pid] }, docId);
     } catch {
       notify({ text: "The page could not be saved. Storage may be full.", tone: "error" });
       setSaving(false);

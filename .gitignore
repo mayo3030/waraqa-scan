@@ -2,6 +2,7 @@ node_modules/
 dist/
 dist-demo/
 public/vendor/opencv.js
+public/vendor/pdf.worker.min.js
 public/vendor/tesseract/
 tests/fixtures/*.rgba
 tests/fixtures/out/

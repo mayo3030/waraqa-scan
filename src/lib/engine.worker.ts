@@ -56,6 +56,7 @@ scope.onmessage = (ev) => {
       const result = runJob(msg, msg.op === "detect" ? scope.cv : null);
       const transfer: Transferable[] = [];
       if (result.raster) transfer.push(result.raster.data.buffer);
+      for (const r of result.rasters ?? []) if (!transfer.includes(r.data.buffer)) transfer.push(r.data.buffer);
       scope.postMessage({ id: msg.id, ok: true, ...result }, transfer);
     } catch (e) {
       scope.postMessage({ id: msg.id, ok: false, error: e instanceof Error ? e.message : String(e) });

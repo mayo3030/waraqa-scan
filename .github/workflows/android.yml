@@ -2,9 +2,11 @@ name: Build Android app
 
 # Every push to main builds a signed .apk and publishes it as a GitHub Release.
 # The app's "Check for updates" button reads the newest release.
+# Pushes to feature/* branches build a test .apk, published as a pre-release:
+# the update button skips pre-releases, so testers install those by hand.
 on:
   push:
-    branches: [main]
+    branches: [main, "feature/**"]
   workflow_dispatch:
 
 permissions:
@@ -19,7 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VERSION_CODE: ${{ github.run_number }}
-      VERSION_NAME: 1.0.${{ github.run_number }}
+      VERSION_NAME: 1.2.${{ github.run_number }}${{ github.ref_name != 'main' && '-test' || '' }}
+      IS_TEST: ${{ github.ref_name != 'main' && 'yes' || '' }}
       # Optional: publish releases to a separate public repo (for a private source repo).
       # Set the repository variable RELEASES_REPO (owner/name) and the secret RELEASES_TOKEN.
       RELEASES_REPO: ${{ vars.RELEASES_REPO != '' && vars.RELEASES_REPO || github.repository }}
@@ -39,10 +42,24 @@ jobs:
       - name: Install
         run: npm ci
 
+      # No .apk is built or published unless the unit tests pass.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Make the test images
+        run: |
+          python -m pip install --quiet numpy pillow
+          npm run fixtures
+
+      - name: Run the unit tests
+        run: npm test
+
       - name: Build the web app
         run: npm run build
         env:
           VITE_GH_REPO: ${{ env.RELEASES_REPO }}
+          APP_VERSION: ${{ env.VERSION_NAME }}
 
       - name: Copy it into the Android project
         run: npx cap sync android
@@ -77,9 +94,15 @@ jobs:
         run: |
           TARGET=""
           if [ "$RELEASES_REPO" = "${{ github.repository }}" ]; then TARGET="--target ${{ github.sha }}"; fi
+          EXTRA=""
+          TITLE="Waraqa Scan $VERSION_NAME"
+          if [ -n "$IS_TEST" ]; then
+            EXTRA="--prerelease"
+            TITLE="Waraqa Scan $VERSION_NAME (test build from ${{ github.ref_name }})"
+          fi
           gh release create "v$VERSION_NAME" "waraqa-scan-$VERSION_NAME.apk" \
-            --repo "$RELEASES_REPO" $TARGET \
-            --title "Waraqa Scan $VERSION_NAME" \
+            --repo "$RELEASES_REPO" $TARGET $EXTRA \
+            --title "$TITLE" \
             --notes "${COMMIT_MSG:-New build}"
 
       # Optional: also put every new .apk in Google Drive.
@@ -95,5 +118,7 @@ jobs:
           mkdir -p ~/.config/rclone
           printf '%s\n' "$RCLONE_CONF" > ~/.config/rclone/rclone.conf
           rclone copyto "waraqa-scan-$VERSION_NAME.apk" "gdrive:$DRIVE_FOLDER/waraqa-scan-$VERSION_NAME.apk"
-          rclone copyto "waraqa-scan-$VERSION_NAME.apk" "gdrive:$DRIVE_FOLDER/waraqa-scan-latest.apk"
+          if [ -z "$IS_TEST" ]; then
+            rclone copyto "waraqa-scan-$VERSION_NAME.apk" "gdrive:$DRIVE_FOLDER/waraqa-scan-latest.apk"
+          fi
           rclone lsl "gdrive:$DRIVE_FOLDER" | tail -5
