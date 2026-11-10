@@ -56,6 +56,7 @@ export function Home({ rev, onOpen, onCamera, onImages, onFiles, onShare, onAllT
         <UpdateButton />
       </header>
       <main className="page page-fab">
+        <UpdateButton look="banner" />
 
         {!q && (
           <section className="quick" aria-label="Quick actions">

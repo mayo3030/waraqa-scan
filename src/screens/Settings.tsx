@@ -39,6 +39,7 @@ export function Settings({ prefs, setPrefs, docCount, notify, onChanged }: Props
             <p className="muted small">Version {__APP_VERSION__}{canUpdate() ? ". Tap the arrows above to check for an update." : ""}</p>
           </div>
         </section>
+        <UpdateButton look="row" />
 
         <section className="set-group">
           <h2>Defaults</h2>

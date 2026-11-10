@@ -11,16 +11,23 @@ type State =
   | { k: "permission"; url: string };
 
 // "Check for updates" in the top bar of the Android app.
-export function UpdateButton() {
+// look "icon": the arrows in a top bar. "banner": a strip that shows only when a newer
+// version is out. "row": a full button for the Me tab.
+export function UpdateButton({ look = "icon" }: { look?: "icon" | "banner" | "row" }) {
   const [open, setOpen] = useState(false);
   const [st, setSt] = useState<State>({ k: "idle" });
   const [dot, setDot] = useState(false);
+  const [ready, setReady] = useState("");
 
   // Quiet check when the app opens, so the button can show a dot.
   useEffect(() => {
     if (!canUpdate()) return;
     checkForUpdate()
-      .then((c) => setDot(!!c.latest && c.latest.build > c.current.build))
+      .then((c) => {
+        const has = !!c.latest && c.latest.build > c.current.build;
+        setDot(has);
+        setReady(has ? c.latest!.name : "");
+      })
       .catch(() => {});
   }, []);
 
@@ -53,10 +60,24 @@ export function UpdateButton() {
 
   return (
     <>
-      <button className="icon-btn update-btn" onClick={check} aria-label="Check for updates">
-        <I.Refresh />
-        {dot && <span className="update-dot" aria-hidden="true" />}
-      </button>
+      {look === "icon" && (
+        <button className="icon-btn update-btn" onClick={check} aria-label="Check for updates">
+          <I.Refresh />
+          {dot && <span className="update-dot" aria-hidden="true" />}
+        </button>
+      )}
+      {look === "banner" && dot && (
+        <button className="update-banner" onClick={check}>
+          <I.Refresh />
+          <span><b>Version {ready} is ready</b><small>Tap to update. Your scans stay on the phone.</small></span>
+          <span className="update-go">Update</span>
+        </button>
+      )}
+      {look === "row" && (
+        <button className="btn btn-primary wide" onClick={check}>
+          <I.Refresh /> {dot ? `Update to ${ready}` : "Check for updates"}
+        </button>
+      )}
       {open && (
         <div className="scrim" onClick={() => st.k !== "downloading" && setOpen(false)}>
           <div className="sheet-panel" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>

@@ -761,3 +761,11 @@ label.btn.disabled { opacity: 0.5; pointer-events: none; }
 .cam-intro-plain p { color: #e2e4f2; }
 .cam-intro .btn-primary { border-radius: 99px; }
 .cam-intro-plain { left: 0; right: 0; bottom: 0; border-radius: 0; padding: 80px 24px 18px; gap: 12px; }
+
+.update-banner {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; text-align: left; border: 0; border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface)); color: var(--ink);
+}
+.update-banner > span:nth-child(2) { flex: 1; display: grid; }
+.update-banner small { color: var(--muted); font-size: 12.5px; }
+.update-go { background: var(--accent); color: var(--accent-ink); font-weight: 700; padding: 8px 14px; border-radius: 99px; font-size: 13.5px; }
