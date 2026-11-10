@@ -7,10 +7,10 @@ const GROUPS: Record<Exclude<Tone, "slate">, string[]> = {
   green: ["To Excel", "Lock", "Lock with Password", "Smart Erase"],
   orange: ["To PPT", "Slides", "Restore Photo", "Greeting Card", "Compress"],
   red: ["To PDF", "PDF to Images", "Erase Marks"],
-  violet: ["AI Chat", "AI Restore", "AI Colorize", "Formula", "Formula to LaTeX", "Incorrect Question"],
+  violet: ["AI HD", "AI Chat", "AI Restore", "AI Colorize", "Formula", "Formula to LaTeX", "Incorrect Question"],
   amber: ["Scan Code", "CountCam", "Print", "Tags & Folder", "Receipt", "All"],
   sky: ["Import Images", "Images", "Long Image", "PDF to Long Image", "Book", "Merge", "Merge Files", "Timestamp"],
-  rose: ["Colorize"],
+  rose: ["Colorize", "Remove Background"],
 };
 
 const BY_LABEL = new Map<string, Tone>();

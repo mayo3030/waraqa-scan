@@ -45,6 +45,23 @@ interface Shot { blob: Blob; url: string; stamp?: string[] }
  * not available (no permission, old WebView) the shutter opens the phone's
  * own camera app instead.
  */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/** The camera's own full-resolution photo, or null. */
+async function fullPhoto(track?: MediaStreamTrack): Promise<Blob | null> {
+  const IC = (window as any).ImageCapture;
+  if (!IC || !track || track.readyState !== "live") return null;
+  try {
+    const ic = new IC(track);
+    const shot: Promise<Blob> = ic.takePhoto();
+    const blob = await Promise.race([shot, new Promise<null>((res) => setTimeout(() => res(null), 3500))]);
+    shot.catch(() => {});
+    return blob && blob.size > 20000 ? blob : null;
+  } catch {
+    return null;
+  }
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 /** Modes that open on a short explainer with one Capture button. */
 const INTRO: Partial<Record<Mode, string>> = {
   mega: "For pages too long for one photo. Take it in parts from the top down and Waraqa joins them into one long page.",
@@ -245,12 +262,17 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
       }
     }
     if (prefs.sound) shutterClick();
-    const c = document.createElement("canvas");
-    c.width = v.videoWidth; c.height = v.videoHeight;
-    c.getContext("2d")!.drawImage(v, 0, 0);
     setFlashFx(true);
     setTimeout(() => setFlashFx(false), 120);
-    const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/jpeg", 0.92));
+    // A real photo from the camera's sensor (often 12 MP or more) instead of a frame of the
+    // preview video (about 2 MP): much sharper text. Falls back to the frame when the phone
+    // does not offer it or takes too long.
+    const blob = (await fullPhoto(stream.current?.getVideoTracks()[0])) ?? (await new Promise<Blob | null>((res) => {
+      const c = document.createElement("canvas");
+      c.width = v.videoWidth; c.height = v.videoHeight;
+      c.getContext("2d")!.drawImage(v, 0, 0);
+      c.toBlob(res, "image/jpeg", 0.95);
+    }));
     if (!blob) return;
     if (prefs.saveToGallery) saveToGallery(blob).then((ok) => { if (!ok) notify({ text: "This phone could not save the photo to the gallery" }); });
     addShots([blob]);

@@ -1,6 +1,6 @@
 feature,area,priority,original,clone,notes
 Camera scan with edge detection and perspective fix,capture,must,yes,yes,
-Filters (Clean / B&W / Gray) with brightness contrast and rotate,edit,must,yes,yes,
+Filters: Auto / Magic Color / Photo / Lighten / No Shadow / Gray / B&W with brightness contrast and rotate,edit,must,yes,yes,
 Multi-page document: reorder / delete / re-edit pages,documents,must,yes,yes,
 Export PDF and JPG and share,export,must,yes,yes,
 OCR English and Arabic with search in text,ocr,must,yes,yes,
@@ -19,4 +19,6 @@ More OCR languages,ocr,could,yes,no,English and Arabic today
 Translate / solve formulas / AI chat,tools,could,yes,partial,works with the user's own AI keys
 Account and cloud sync between devices,cloud,could,yes,skip,needs a server; revisit after launch
 Fax / share links / team workspaces,cloud,could,yes,skip,services of the original company rather than app features
+AI HD upscale (2x / 4x) with face fix,tools,could,yes,yes,Replicate with the user's key
+Remove background (AI) with new colour or see-through PNG,tools,could,no,yes,Waraqa extra
 VIN reading from a scanned page,tools,could,no,yes,Waraqa extra

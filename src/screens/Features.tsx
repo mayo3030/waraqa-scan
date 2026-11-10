@@ -43,6 +43,8 @@ export const FEATURE_GROUPS: { title: string; items: Feature[] }[] = [
       { kind: "cam", mode: "idphoto", label: "ID Photo Maker", icon: <I.Person size={24} /> },
       { kind: "cam", mode: "restore", label: "Restore Photo", icon: <I.Restore size={24} /> },
       { kind: "cam", mode: "erase", label: "Smart Erase", icon: <I.Eraser size={24} /> },
+      { kind: "doc", tool: "ai-hd", label: "AI HD", icon: <I.Hd size={24} /> },
+      { kind: "doc", tool: "ai-bg", label: "Remove Background", icon: <I.Cutout size={24} /> },
       { kind: "cam", mode: "code", label: "Scan Code", icon: <I.Qr size={24} /> },
     ],
   },

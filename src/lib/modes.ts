@@ -48,16 +48,16 @@ export interface ModeInfo {
 }
 
 export const MODES: ModeInfo[] = [
-  { id: "scan", label: "Scan", shots: "many", filter: "enhance", help: "Hold the phone over the page. Waraqa finds the edges, then you can fix the corners." },
+  { id: "scan", label: "Scan", shots: "many", filter: "auto", help: "Hold the phone over the page. Waraqa finds the edges, then you can fix the corners." },
   { id: "ocr", label: "Extract Text", shots: "many", filter: "enhance", help: "Scan the page, then Waraqa reads the text on it. Works offline after the first use." },
   { id: "word", label: "To Word", shots: "many", filter: "enhance", help: "Scan the pages, Waraqa reads the text and saves a Word file you can edit." },
   { id: "excel", label: "To Excel", shots: "many", filter: "enhance", help: "Scan a table. Waraqa reads it and guesses rows and columns for an Excel file. Check the result, simple tables work best." },
-  { id: "idcard", label: "ID Cards", shots: "two", filter: "original", tag: "ID Card", help: "Take the front, then the back. Both sides go on one page at real card size, ready to print." },
+  { id: "idcard", label: "ID Cards", shots: "two", filter: "photo", tag: "ID Card", help: "Take the front, then the back. Both sides go on one page at real card size, ready to print." },
   { id: "receipt", label: "Receipt", shots: "many", filter: "gray", tag: "Receipt", help: "Lay the receipt flat. Long receipts can be taken in parts with Mega Scan." },
-  { id: "book", label: "Book", shots: "many", filter: "enhance", tag: "Book", help: "Photograph two open pages. Waraqa splits them at the spine into two pages." },
+  { id: "book", label: "Book", shots: "many", filter: "auto", tag: "Book", help: "Photograph two open pages. Waraqa splits them at the spine into two pages." },
   { id: "whiteboard", label: "Whiteboard", shots: "many", filter: "original", tag: "Whiteboard", help: "Take the board from the front. Glare and shadows are cleaned and the background turns white." },
-  { id: "slides", label: "Slides", shots: "many", filter: "original", tag: "Slides", help: "Photograph a screen or projected slide. Keep colors, fix the angle." },
-  { id: "mega", label: "Mega Scan", shots: "many", filter: "enhance", help: "For long pages: take the page top to bottom in parts, with some overlap between shots. They are joined into one page." },
+  { id: "slides", label: "Slides", shots: "many", filter: "photo", tag: "Slides", help: "Photograph a screen or projected slide. Keep colors, fix the angle." },
+  { id: "mega", label: "Mega Scan", shots: "many", filter: "auto", help: "For long pages: take the page top to bottom in parts, with some overlap between shots. They are joined into one page." },
   { id: "idphoto", label: "ID Photo", shots: "one", filter: "original", tag: "Photo", help: "Take a photo of the face against a plain light wall. Then pick a size, Waraqa makes one photo and a 4 x 6 print sheet." },
   { id: "timestamp", label: "Timestamp", shots: "many", filter: "original", help: "Each photo gets the date and time written on it. Turn on location in the menu to add the place." },
   { id: "code", label: "Scan Code", shots: "one", filter: "original", help: "Point at a QR code or barcode. The result shows as soon as it is read, and the last ones are kept in History." },

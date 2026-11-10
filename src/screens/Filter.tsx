@@ -58,7 +58,7 @@ export function FilterScreen({ s, notify, onBack, onSaved }: Props) {
     await new Promise((r) => setTimeout(r, 30));
     try {
       const out: Raster = await finishAsync(flat, filter, adjust);
-      const result = await rasterToBlob(out);
+      const result = await rasterToBlob(out, 0.93);
       let docId = s.docId;
       if (!docId) {
         docId = newId();
@@ -117,7 +117,9 @@ export function FilterScreen({ s, notify, onBack, onSaved }: Props) {
         {flat ? <canvas ref={view} className="sheet" /> : <p className="stage-wait">Preparing the page…</p>}
       </div>
       <div className="filter-panel">
-        <div className="swatches" role="radiogroup" aria-label="Filter">
+        <div className="swatches" role="radiogroup" aria-label="Filter" ref={(el) => {
+          el?.querySelector<HTMLElement>('[aria-checked="true"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
+        }}>
           {FILTERS.map((f) => (
             <button
               key={f.id}

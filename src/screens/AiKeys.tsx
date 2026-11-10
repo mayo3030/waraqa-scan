@@ -3,7 +3,7 @@ import { clearSecret, encryptedStorage, secretHint, setSecret, type SecretName }
 
 const KEYS: { name: SecretName; label: string; uses: string; hint: string }[] = [
   { name: "openrouter", label: "OpenRouter API key", uses: "Formula to LaTeX and AI Chat", hint: "sk-or-…" },
-  { name: "replicate", label: "Replicate API token", uses: "AI Restore and AI Colorize", hint: "r8_…" },
+  { name: "replicate", label: "Replicate API token", uses: "AI Restore, AI Colorize, AI HD, Remove Background", hint: "r8_…" },
 ];
 
 /** Two key fields. The saved key is never shown again, only its last 4 characters. */

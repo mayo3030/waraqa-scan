@@ -11,20 +11,21 @@ import { Capacitor } from "@capacitor/core";
 import { canShareFiles, safeName, saveFile, saveMany, shareNative } from "../lib/save";
 import { OCR_LANGS, recognizeDetailed, recognizeWithClaude, type OcrLang } from "../lib/ocr";
 import { toDocx, toLatexDocx, toLongImage, toPptx, toReviewDocx, toXlsx } from "../lib/exporters";
-import { aiPhoto, docContext, formulaToLatex, MissingKey, openRouterChat, type ChatMsg } from "../lib/ai";
+import { aiPhoto, aiRemoveBackground, aiUpscale, docContext, formulaToLatex, MissingKey, openRouterChat, type ChatMsg } from "../lib/ai";
 import { getSecret } from "../lib/secrets";
 import { canTranslateOnDevice, onlineTranslateUrl, TARGETS, targetLabel, translateOnDevice } from "../lib/translate";
 import { splitQuestions } from "../lib/questions";
 import { printPdf } from "../lib/print";
 import { runAsync } from "../lib/engine";
 import { blobToRaster, rasterThumb, rasterToBlob } from "../lib/io";
+import { BG_CHOICES, cutoutOn, rasterToPng } from "../lib/cutout";
 import { PhotoButtons } from "./PhotoButtons";
 import { useDocs } from "./useDocs";
 
 export type DocTool =
   | "text" | "word" | "excel" | "pptx" | "pdf" | "long" | "images" | "sign" | "watermark" | "erase"
   | "marks" | "restore" | "colorize" | "merge" | "extract" | "reorder" | "lock" | "compress" | "print" | "tags"
-  | "translate" | "questions" | "latex" | "chat" | "ai-restore" | "ai-colorize";
+  | "translate" | "questions" | "latex" | "chat" | "ai-restore" | "ai-colorize" | "ai-hd" | "ai-bg";
 
 type PageJob = "sign" | "erase" | "marks" | "restore" | "colorize" | "ai-restore" | "ai-colorize";
 
@@ -57,6 +58,8 @@ type Sheet =
   | { kind: "convert"; to: Convert }
   | { kind: "tools" }
   | { kind: "pick"; then: PageJob }
+  | { kind: "ai-hd"; index: number }
+  | { kind: "ai-bg"; index: number }
   | { kind: "latex" }
   | { kind: "chat" }
   | { kind: "translate" }
@@ -79,6 +82,10 @@ export function DocView(props: Props) {
   const { id, rev, start, paper, setPaper, translateTo, setTranslateTo, notify, onBack, onPhotos, onCamera, onEditPage, onSign, onErase, onOpenDoc, onChanged } = props;
   const [doc, setDoc] = useState<DocRec | null>(null);
   const [pages, setPages] = useState<PageRec[]>([]);
+  // AI HD and background removal: the chosen options and the cut-out the AI sent back.
+  const [hd, setHd] = useState<{ scale: 2 | 4; faces: boolean }>({ scale: 2, faces: false });
+  const [cut, setCut] = useState<{ blob: Blob; url: string; index: number } | null>(null);
+  const [bgColor, setBgColor] = useState<string>("#ffffff");
   const [folders, setFolders] = useState<FolderRec[]>([]);
   const [name, setName] = useState("");
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -119,7 +126,7 @@ export function DocView(props: Props) {
   if (!doc) return <main className="page"><p className="muted">Opening…</p></main>;
 
   function openTool(t: DocTool) {
-    const key = t === "latex" || t === "chat" ? "openrouter" : t === "ai-restore" || t === "ai-colorize" ? "replicate" : null;
+    const key = t === "latex" || t === "chat" ? "openrouter" : t === "ai-restore" || t === "ai-colorize" || t === "ai-hd" || t === "ai-bg" ? "replicate" : null;
     if (key) {
       void getSecret(key).then((k) => k ? toolNow(t) : notify({ text: new MissingKey(key).message, tone: "error" }));
       return;
@@ -127,7 +134,16 @@ export function DocView(props: Props) {
     toolNow(t);
   }
 
-  function toolNow(t: DocTool) {
+  /** AI HD or background removal on one page, once the Replicate key is there. */
+  function openAi(kind: "ai-hd" | "ai-bg", index: number) {
+    void getSecret("replicate").then((k) => {
+      if (!k) return notify({ text: new MissingKey("replicate").message, tone: "error" });
+      setCut(null);
+      setSheet({ kind, index });
+    });
+  }
+
+  function toolNow(t: DocTool, index = 0) {
     switch (t) {
       case "text":
         setSheet({ kind: "text" });
@@ -155,6 +171,9 @@ export function DocView(props: Props) {
       case "sign": case "erase": case "marks": case "restore": case "colorize": case "ai-restore": case "ai-colorize":
         if (pages.length === 1) return void pickedPage(t, 0);
         return setSheet({ kind: "pick", then: t });
+      case "ai-hd": case "ai-bg":
+        setCut(null);
+        return setSheet({ kind: t, index });
       case "merge": return setSheet({ kind: "merge" });
       case "extract": setPicks(new Set()); return setSheet({ kind: "extract" });
       case "reorder": return setSheet({ kind: "reorder" });
@@ -437,6 +456,52 @@ export function DocView(props: Props) {
     } catch (e) { fail(e, "The page"); }
   }
 
+  const runHd = async (i: number) => {
+    const p = pages[i];
+    setWorking(hd.scale === 4 ? "AI is making it Ultra HD" : "AI is making it HD");
+    try {
+      const out = await aiUpscale(p.result, hd.scale, hd.faces, (s) => setWorking(s));
+      const r = await blobToRaster(out, 4400);
+      await replaceResult(p, await rasterToBlob(r, 0.95), rasterThumb(r), r.width, r.height);
+      setWorking(null);
+      setSheet(null);
+      notify({ text: `Page is now ${r.width} x ${r.height}. Edit brings back the original.` });
+      await load();
+      onChanged();
+    } catch (e) { fail(e, "The HD page"); }
+  };
+
+  const runCut = async (i: number) => {
+    setWorking("AI is removing the background");
+    try {
+      const blob = await aiRemoveBackground(pages[i].result, (s) => setWorking(s));
+      if (cut) URL.revokeObjectURL(cut.url);
+      setCut({ blob, url: URL.createObjectURL(blob), index: i });
+      setWorking(null);
+    } catch (e) { fail(e, "The cut-out"); }
+  };
+
+  const saveCut = async (transparent: boolean) => {
+    if (!cut) return;
+    const p = pages[cut.index];
+    setWorking(transparent ? "Saving the PNG" : "Saving the page");
+    try {
+      const src = await blobToRaster(cut.blob, 3600);
+      if (transparent) {
+        setWorking(null);
+        report(await saveFile(`${safeName(doc.name)} cut-out.png`, await rasterToPng(src)), "PNG");
+        return;
+      }
+      const r = cutoutOn(src, bgColor);
+      await replaceResult(p, await rasterToBlob(r, 0.95), rasterThumb(r), r.width, r.height);
+      setWorking(null);
+      setSheet(null);
+      notify({ text: "New background saved. Edit brings back the original." });
+      await load();
+      onChanged();
+    } catch (e) { fail(e, "The page"); }
+  };
+
   const extract = async () => {
     const chosen = pages.filter((_, i) => picks.has(i));
     if (!chosen.length) return;
@@ -513,6 +578,8 @@ export function DocView(props: Props) {
     { t: "chat", label: "AI Chat", icon: <I.Sparkle /> },
     { t: "ai-restore", label: "AI Restore", icon: <I.Sparkle /> },
     { t: "ai-colorize", label: "AI Colorize", icon: <I.Sparkle /> },
+    { t: "ai-hd", label: "AI HD", icon: <I.Hd /> },
+    { t: "ai-bg", label: "Remove Background", icon: <I.Cutout /> },
     { t: "questions", label: "Incorrect Question", icon: <I.Question /> },
     { t: "merge", label: "Merge", icon: <I.Merge /> },
     { t: "extract", label: "Extract Pages", icon: <I.Cut /> },
@@ -588,6 +655,10 @@ export function DocView(props: Props) {
                   <button className="tool" onClick={() => onErase(page.id)}><I.Eraser /><span>Smart erase</span></button>
                   <button className="tool" onClick={() => pickedPage("marks", sheet.index)}><I.Wand /><span>Erase marks</span></button>
                   <button className="tool" onClick={() => pickedPage("restore", sheet.index)}><I.Restore /><span>Restore</span></button>
+                </div>
+                <div className="sheet-actions">
+                  <button className="tool" onClick={() => openAi("ai-hd", sheet.index)}><I.Hd /><span>AI HD</span></button>
+                  <button className="tool" onClick={() => openAi("ai-bg", sheet.index)}><I.Cutout /><span>Remove BG</span></button>
                 </div>
               </>
             )}
@@ -773,6 +844,69 @@ export function DocView(props: Props) {
                 )}
                 {progress}
                 {busyBtn(sheet.to === "word" ? "Make Word file" : sheet.to === "excel" ? "Make Excel file" : "Make slides", () => convert(sheet.to))}
+              </>
+            )}
+
+            {(sheet.kind === "ai-hd" || sheet.kind === "ai-bg") && (
+              <>
+                {head(sheet.kind === "ai-hd" ? "AI HD" : "Remove background")}
+                {pages.length > 1 && !cut && (
+                  <div className="pick-grid" role="radiogroup" aria-label="Page">
+                    {pages.map((p, i) => (
+                      <button key={p.id} role="radio" aria-checked={sheet.index === i} aria-label={`Page ${i + 1}`}
+                        className={"pick-card" + (sheet.index === i ? " on" : "")} onClick={() => setSheet({ kind: sheet.kind, index: i })}>
+                        <img src={p.thumb} alt="" /><span className="mono">{i + 1}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {sheet.kind === "ai-hd" && (
+                  <>
+                    <p className="muted">AI redraws the page sharper and larger: finer text, cleaner edges, less blur and noise.</p>
+                    <div className="seg" role="radiogroup" aria-label="Size">
+                      <button role="radio" aria-checked={hd.scale === 2} className={hd.scale === 2 ? "on" : ""} onClick={() => setHd({ ...hd, scale: 2 })}>HD (2x)</button>
+                      <button role="radio" aria-checked={hd.scale === 4} className={hd.scale === 4 ? "on" : ""} onClick={() => setHd({ ...hd, scale: 4 })}>Ultra HD (4x)</button>
+                    </div>
+                    <label className="switch-row">
+                      <span><I.Person size={18} /> Also fix faces</span>
+                      <input type="checkbox" checked={hd.faces} onChange={(e) => setHd({ ...hd, faces: e.target.checked })} />
+                    </label>
+                    {busyBtn("Make it HD", () => void runHd(sheet.index))}
+                  </>
+                )}
+                {sheet.kind === "ai-bg" && !cut && (
+                  <>
+                    <p className="muted">AI finds the person or object and takes everything around it away. Then pick a new background or keep it see-through.</p>
+                    {busyBtn("Remove background", () => void runCut(sheet.index))}
+                  </>
+                )}
+                {sheet.kind === "ai-bg" && cut && (
+                  <>
+                    <div className={"cut-view" + (bgColor === "none" ? " checker" : "")} style={bgColor === "none" ? undefined : { background: bgColor }}>
+                      <img src={cut.url} alt="The cut-out" />
+                    </div>
+                    <div className="chips wrap" role="radiogroup" aria-label="Background">
+                      {BG_CHOICES.map((c) => (
+                        <button key={c.id} role="radio" aria-checked={bgColor === c.color} className={"chip-btn bg-chip" + (bgColor === c.color ? " on" : "")} onClick={() => setBgColor(c.color)}>
+                          <span className={"dot" + (c.color === "none" ? " checker" : "")} style={c.color === "none" ? undefined : { background: c.color }} />{c.label}
+                        </button>
+                      ))}
+                      <label className="chip-btn bg-chip" aria-label="Other color">
+                        <span className="dot" style={{ background: bgColor !== "none" && !BG_CHOICES.some((c) => c.color === bgColor) ? bgColor : "conic-gradient(red, yellow, lime, cyan, blue, magenta, red)" }} />Other
+                        <input type="color" className="file-input" value={bgColor === "none" ? "#ffffff" : bgColor} onChange={(e) => setBgColor(e.target.value)} />
+                      </label>
+                    </div>
+                    {bgColor === "none"
+                      ? busyBtn("Save as PNG", () => void saveCut(true))
+                      : (
+                        <div className="row-2">
+                          {busyBtn("Save PNG", () => void saveCut(true), false)}
+                          {busyBtn("Use on page", () => void saveCut(false))}
+                        </div>
+                      )}
+                  </>
+                )}
+                <p className="muted small">Sends this page to Replicate with your own key. It costs a little of your Replicate credit.</p>
               </>
             )}
 

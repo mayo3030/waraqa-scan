@@ -70,6 +70,8 @@ const GROUPS: { title: string; items: Item[] }[] = [
       { kind: "doc", tool: "colorize", label: "Colorize", icon: <I.Drop /> },
       { kind: "doc", tool: "ai-restore", label: "AI Restore", icon: <I.Sparkle /> },
       { kind: "doc", tool: "ai-colorize", label: "AI Colorize", icon: <I.Sparkle /> },
+      { kind: "doc", tool: "ai-hd", label: "AI HD", icon: <I.Hd /> },
+      { kind: "doc", tool: "ai-bg", label: "Remove Background", icon: <I.Cutout /> },
       { kind: "doc", tool: "latex", label: "Formula to LaTeX", icon: <I.Formula /> },
       { kind: "doc", tool: "translate", label: "Translate", icon: <I.Translate /> },
       { kind: "doc", tool: "merge", label: "Merge Files", icon: <I.Merge /> },
@@ -148,7 +150,7 @@ export function Tools({ onCamera, onImages, onFiles, onDocTool, onPdfFile }: Pro
             </div>
           </section>
         ))}
-        <p className="muted small">Most tools run on your phone. Formula to LaTeX, AI Chat, AI Restore and AI Colorize go online with your own OpenRouter or Replicate key from Me, AI keys. Translate uses the phone's own translator where Android has one, otherwise it opens Google Translate when you tap it.</p>
+        <p className="muted small">Most tools run on your phone. Formula to LaTeX, AI Chat, AI Restore, AI Colorize, AI HD and Remove Background go online with your own OpenRouter or Replicate key from Me, AI keys. Translate uses the phone's own translator where Android has one, otherwise it opens Google Translate when you tap it.</p>
       </main>
     </>
   );

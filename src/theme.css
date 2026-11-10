@@ -275,3 +275,21 @@ button { transition: background-color 0.15s, transform 0.12s var(--ease), box-sh
   position: absolute; inset: 16px; margin: auto;
   max-width: calc(100% - 32px); max-height: calc(100% - 32px); border-radius: 4px;
 }
+
+/* Filters: one row that scrolls sideways, like a camera's film strip. */
+.swatches {
+  display: flex; gap: 10px; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity;
+  margin-inline: calc(-1 * var(--gutter-l)) calc(-1 * var(--gutter-r)); padding: 3px var(--gutter-r) 3px var(--gutter-l);
+  scroll-padding-inline: var(--gutter-l) var(--gutter-r);
+}
+.swatches::-webkit-scrollbar { display: none; }
+.swatch { flex: none; width: 78px; scroll-snap-align: start; font-size: 12px; white-space: nowrap; }
+.swatch span:last-child { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+/* AI cut-out preview */
+.cut-view { border-radius: 16px; padding: 12px; display: grid; place-items: center; max-height: 42vh; overflow: hidden; box-shadow: var(--shadow-1); }
+.cut-view img { max-width: 100%; max-height: calc(42vh - 24px); object-fit: contain; }
+.checker { background-color: #fff; background-image: conic-gradient(#d9d9de 25%, #fff 0 50%, #d9d9de 0 75%, #fff 0); background-size: 18px 18px; }
+.bg-chip { position: relative; }
+.bg-chip .dot { width: 16px; height: 16px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18); }
+.pick-card.on { box-shadow: 0 0 0 3px var(--accent); }
