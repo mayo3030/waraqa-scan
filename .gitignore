@@ -14,3 +14,4 @@ dist-e2e/
 e2e-results.json
 test-results/
 playwright-report/
+public/vendor/fonts/
