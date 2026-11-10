@@ -10,11 +10,14 @@ export const PHOTO_2 = fixture("photo-desk.jpg");
 export const PHOTO_3 = fixture("photo-light.jpg");
 
 /** What GitHub answers for "newest release". build 14 is what the stand-in app reports. */
-export const release = (build: number) => ({
-  tag_name: `v1.2.${build}`,
+export const release = (build: number, test = false) => ({
+  tag_name: `v1.2.${build}${test ? "-test" : ""}`,
+  prerelease: test,
   body: "Test release notes.",
-  assets: [{ name: `waraqa-scan-1.2.${build}.apk`, browser_download_url: "https://example.invalid/waraqa.apk" }],
+  assets: [{ name: `waraqa-scan-1.2.${build}${test ? "-test" : ""}.apk`, browser_download_url: "https://example.invalid/waraqa.apk" }],
 });
+/** What GitHub answers for the release list: newest first. */
+export const releases = (...list: ReturnType<typeof release>[]) => list;
 
 export const test = base.extend<{ consoleErrors: string[] }>({
   consoleErrors: [async ({ page }, use) => {
@@ -22,7 +25,7 @@ export const test = base.extend<{ consoleErrors: string[] }>({
     page.on("pageerror", (e) => errors.push("pageerror: " + e.message));
     page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
     // By default the app is up to date; update.spec.ts overrides this.
-    await page.route("**/api.github.com/**", (r) => r.fulfill({ json: release(14) }));
+    await page.route("**/api.github.com/**", (r) => r.fulfill({ json: releases(release(14)) }));
     await use(errors);
     expect(errors, "console errors during the test").toEqual([]);
   }, { auto: true }],

@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, fixture, openApp, release, tab, test } from "./app";
+import { expect, fixture, openApp, release, releases, tab, test } from "./app";
 
 // On Android the app draws behind the status bar and the navigation bar, and Capacitor
 // tells the page how tall they are through these CSS variables. Nothing the person reads
@@ -121,7 +121,7 @@ test("the camera and its sheets stay clear of the system bars", async ({ page })
 
 test("the update sheet and the Home strip stay clear of the system bars", async ({ page }) => {
   await withSystemBars(page);
-  await page.route("**/api.github.com/**", (r) => r.fulfill({ json: release(20) }));
+  await page.route("**/api.github.com/**", (r) => r.fulfill({ json: releases(release(20), release(14)) }));
   await page.goto("/");
   await expect(page.getByRole("dialog", { name: "App update" })).toBeVisible();
   await clear(page, "Update sheet");

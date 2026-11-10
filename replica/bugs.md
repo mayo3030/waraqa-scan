@@ -3,7 +3,7 @@
 Found in the QA pass of 2026-11-09 on the build after v1.2.14. Browser: Chrome, 390 x 844, dark and light.
 Only bugs that were reproduced are listed. Each fixed one has a test that fails without the fix.
 
-Summary: 13 found, 13 fixed. Open: S1 0, S2 0, S3 0, S4 0.
+Summary: 14 found, 14 fixed. Open: S1 0, S2 0, S3 0, S4 0.
 BUG-008 to BUG-010 were found by Mina on his phone in v1.2.18-test; the first QA pass missed them because it had no test for the system bars and no hand-held photos. Both gaps now have tests.
 
 ### BUG-001: The floating scan button covers Delete while selecting documents
@@ -188,6 +188,23 @@ Status: fixed, with a test.
 Expected: the list ends above the phone's buttons.
 Actual: rows of All features showed through under them.
 Status: fixed.
+
+### BUG-014: A test install is never offered the next test build
+
+- Severity: S2
+- Flow / case: F10-H4
+- Screen: Me, Check for updates
+- Build: v1.2.18-test  Device: Mina's phone
+
+Steps
+1. Install 1.2.18-test. Publish 1.2.19-test.
+2. Tap Check for updates.
+
+Expected: "Version 1.2.19-test is ready".
+Actual: "You have the newest version (1.2.18-test)".
+Evidence: Mina's screenshot, 2026-11-10.
+Suspected cause: the check asked GitHub for the "latest release", which leaves pre-releases out, so test builds were invisible; the newest normal release (1.2.14) is older than any test build.
+Status: fixed. The app reads the release list; a test install follows test and normal builds, a normal install only normal ones. Unit test tests/updater.test.ts and two end-to-end cases.
 
 ## To check on a phone
 
