@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VERSION_CODE: ${{ github.run_number }}
-      VERSION_NAME: 1.1.${{ github.run_number }}${{ github.ref_name != 'main' && '-test' || '' }}
+      VERSION_NAME: 1.2.${{ github.run_number }}${{ github.ref_name != 'main' && '-test' || '' }}
       IS_TEST: ${{ github.ref_name != 'main' && 'yes' || '' }}
       # Optional: publish releases to a separate public repo (for a private source repo).
       # Set the repository variable RELEASES_REPO (owner/name) and the secret RELEASES_TOKEN.

@@ -61,6 +61,15 @@ export const Drop = ({ size = 20 }: I) => svg(size, <g {...P}><path d="M5 19 19 
 export const Mega = ({ size = 20 }: I) => svg(size, <g {...P}><rect x="6" y="2.5" width="12" height="7" rx="1" /><rect x="6" y="8.5" width="12" height="7" rx="1" strokeDasharray="2 2" /><rect x="6" y="14.5" width="12" height="7" rx="1" /></g>);
 export const Upload = ({ size = 20 }: I) => svg(size, <g {...P}><path d="M6 3.5h8l4 4v13H6z" /><path d="M12 17v-6.5M9.5 13l2.5-2.5 2.5 2.5" /></g>);
 export const Restore = ({ size = 20 }: I) => svg(size, <g {...P}><rect x="3.5" y="5" width="17" height="14" rx="1.5" /><path d="m6.5 16 4-4 3 3 2-2 2 2" /><path d="M16 7.5v3M14.5 9h3" /></g>);
+export const Translate = ({ size = 20 }: I) => svg(size, <g {...P}><path d="M3.5 6h9M8 4v2M10.5 6c-.6 3.5-3 6.3-6 7.5M6 9.5c1 1.7 2.6 3 4.5 3.7" /><path d="m12.5 20 3.8-9 3.7 9M13.8 17h5" /></g>);
+export const Question = ({ size = 20 }: I) => svg(size, <g {...P}><path d="M6 3.5h9l3.5 3.5v13.5H6z" /><path d="M9 9.5h6M9 13h3" /><path d="m12.5 17 1.6 1.6 3-3.2" /></g>);
+export const Formula = ({ size = 20 }: I) => svg(size, <g {...P}><rect x="4" y="3.5" width="16" height="17" rx="1.5" /><path d="M7 13l1.5-1 1.5 4.5 2.5-8.5h5M13.5 12.5l3 3.5M16.5 12.5l-3 3.5" /></g>);
+export const Count = ({ size = 20 }: I) => svg(size, <g {...P}><circle cx="12" cy="7.5" r="3.5" /><circle cx="7.5" cy="15.5" r="3.5" /><circle cx="16.5" cy="15.5" r="3.5" /><path d="M11.5 6.3 12.3 5.8v3.6M6.6 14.3c.4-.6 1.8-.6 1.8.3 0 .8-1.8 1.4-1.8 2.3h1.9M15.7 14.2h1.6l-.9 1.2c.9 0 1.2.4 1.2.9s-.5.9-1.1.9-.9-.2-1-.5" strokeWidth="1.3" /></g>);
+export const Card = ({ size = 20 }: I) => svg(size, <g {...P}><rect x="5" y="3.5" width="14" height="17" rx="1.5" /><path d="M12 13.2c-2.3-1.4-3.4-2.6-3.4-3.9a1.7 1.7 0 0 1 3.4-.4 1.7 1.7 0 0 1 3.4.4c0 1.3-1.1 2.5-3.4 3.9zM8.5 16.5h7" /></g>);
+export const History = ({ size = 20 }: I) => svg(size, <g {...P}><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3" /><path d="M4.5 4.5v3.5H8M12 8v4.3l2.8 1.7" /></g>);
+export const Gear = ({ size = 20 }: I) => svg(size, <g {...P}><circle cx="12" cy="12" r="3" /><path d="M12 3.5v2.3M12 18.2v2.3M3.5 12h2.3M18.2 12h2.3M6 6l1.6 1.6M16.4 16.4 18 18M6 18l1.6-1.6M16.4 7.6 18 6" /></g>);
+export const Apps = ({ size = 20 }: I) => svg(size, <g {...P}><circle cx="6.5" cy="6.5" r="2.2" /><circle cx="17.5" cy="6.5" r="2.2" /><circle cx="6.5" cy="17.5" r="2.2" /><circle cx="17.5" cy="17.5" r="2.2" /></g>);
+export const Level = ({ size = 20 }: I) => svg(size, <g {...P}><rect x="3" y="8.5" width="18" height="7" rx="3.5" /><circle cx="12" cy="12" r="1.8" /><path d="M9 8.5v7M15 8.5v7" /></g>);
 export const Sort = ({ size = 20 }: I) => svg(size, <g {...P}><path d="M7 4v16M4 7l3-3 3 3M17 20V4M14 17l3 3 3-3" /></g>);
 
 /** The Waraqa mark: a page with a folded corner and a scan line. */

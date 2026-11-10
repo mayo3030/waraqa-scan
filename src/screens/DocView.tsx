@@ -9,7 +9,9 @@ import { buildPdf, PAPER, type PaperSize, type PdfOptions } from "../lib/pdf";
 import { Capacitor } from "@capacitor/core";
 import { canShareFiles, safeName, saveFile, saveMany, shareNative } from "../lib/save";
 import { OCR_LANGS, recognize, recognizeWithClaude, type OcrLang } from "../lib/ocr";
-import { toDocx, toLongImage, toPptx, toXlsx } from "../lib/exporters";
+import { toDocx, toLongImage, toPptx, toReviewDocx, toXlsx } from "../lib/exporters";
+import { canTranslateOnDevice, onlineTranslateUrl, TARGETS, targetLabel, translateOnDevice } from "../lib/translate";
+import { splitQuestions } from "../lib/questions";
 import { printPdf } from "../lib/print";
 import { runAsync } from "../lib/engine";
 import { blobToRaster, rasterThumb, rasterToBlob } from "../lib/io";
@@ -18,7 +20,8 @@ import { useDocs } from "./useDocs";
 
 export type DocTool =
   | "text" | "word" | "excel" | "pptx" | "pdf" | "long" | "images" | "sign" | "watermark" | "erase"
-  | "marks" | "restore" | "merge" | "extract" | "reorder" | "lock" | "compress" | "print" | "tags";
+  | "marks" | "restore" | "colorize" | "merge" | "extract" | "reorder" | "lock" | "compress" | "print" | "tags"
+  | "translate" | "questions";
 
 interface Props {
   id: string;
@@ -26,6 +29,8 @@ interface Props {
   start?: DocTool;
   paper: PaperSize;
   setPaper(p: PaperSize): void;
+  translateTo: string;
+  setTranslateTo(l: string): void;
   notify(t: Toast): void;
   onBack(): void;
   onPhotos(b: Blob[]): void;
@@ -46,7 +51,9 @@ type Sheet =
   | { kind: "text" }
   | { kind: "convert"; to: Convert }
   | { kind: "tools" }
-  | { kind: "pick"; then: "sign" | "erase" | "marks" | "restore" }
+  | { kind: "pick"; then: "sign" | "erase" | "marks" | "restore" | "colorize" }
+  | { kind: "translate" }
+  | { kind: "questions" }
   | { kind: "extract" }
   | { kind: "reorder" }
   | { kind: "merge" }
@@ -62,7 +69,7 @@ function textPages(text: string, n: number): string[] {
 }
 
 export function DocView(props: Props) {
-  const { id, rev, start, paper, setPaper, notify, onBack, onPhotos, onCamera, onEditPage, onSign, onErase, onOpenDoc, onChanged } = props;
+  const { id, rev, start, paper, setPaper, translateTo, setTranslateTo, notify, onBack, onPhotos, onCamera, onEditPage, onSign, onErase, onOpenDoc, onChanged } = props;
   const [doc, setDoc] = useState<DocRec | null>(null);
   const [pages, setPages] = useState<PageRec[]>([]);
   const [folders, setFolders] = useState<FolderRec[]>([]);
@@ -75,6 +82,8 @@ export function DocView(props: Props) {
   const [opts, setOpts] = useState<PdfOptions>({});
   const [withImages, setWithImages] = useState(true);
   const [picks, setPicks] = useState<Set<number>>(new Set());
+  const [translated, setTranslated] = useState<string | null>(null);
+  const [wrong, setWrong] = useState<Set<number>>(new Set());
   const started = useRef(false);
 
   const load = async () => {
@@ -110,7 +119,17 @@ export function DocView(props: Props) {
         return setSheet({ kind: "pdf", focus: t });
       case "long": setSheet(null); return void longImage();
       case "images": setSheet(null); return void allImages();
-      case "sign": case "erase": case "marks": case "restore":
+      case "translate":
+        setTranslated(null);
+        setSheet({ kind: "translate" });
+        if (!textPages(text, pages.length).some((x) => x.trim())) void runOcr();
+        return;
+      case "questions":
+        setWrong(new Set());
+        setSheet({ kind: "questions" });
+        if (!textPages(text, pages.length).some((x) => x.trim())) void runOcr();
+        return;
+      case "sign": case "erase": case "marks": case "restore": case "colorize":
         if (pages.length === 1) return void pickedPage(t, 0);
         return setSheet({ kind: "pick", then: t });
       case "merge": return setSheet({ kind: "merge" });
@@ -257,6 +276,41 @@ export function DocView(props: Props) {
     } catch (e) { fail(e, "The file"); }
   };
 
+  const doTranslate = async () => {
+    try {
+      const src = (await ensureText()).join("\n\n").trim();
+      if (!src) { notify({ text: "No text was found on these pages", tone: "error" }); return; }
+      setWorking("Translating on this phone");
+      const out = await translateOnDevice(src, translateTo);
+      setWorking(null);
+      if (out === null) notify({ text: "This phone cannot translate that language offline. Use Google Translate below.", tone: "error" });
+      else setTranslated(out);
+    } catch (e) { fail(e, "The translation"); }
+  };
+
+  const translatedWord = async () => {
+    if (!translated) return;
+    setWorking("Making the Word file");
+    try {
+      const blob = await toDocx(`${doc.name} (${targetLabel(translateTo)})`, [translated], [], false);
+      setWorking(null);
+      report(await saveFile(`${safeName(doc.name)} ${targetLabel(translateTo)}.docx`, blob), "Word file");
+    } catch (e) { fail(e, "The file"); }
+  };
+
+  const questionList = splitQuestions(textPages(text, pages.length).join("\n"));
+
+  const saveReview = async () => {
+    const chosen = questionList.filter((_, i) => wrong.has(i));
+    if (!chosen.length) return;
+    setWorking("Making the review sheet");
+    try {
+      const blob = await toReviewDocx(`Review: ${doc.name}`, chosen);
+      setWorking(null);
+      report(await saveFile(`${safeName(doc.name)} review.docx`, blob), "Review sheet");
+    } catch (e) { fail(e, "The review sheet"); }
+  };
+
   const saveText = async () => {
     if (text !== (doc.text ?? "")) await save({ ...doc, text });
   };
@@ -271,14 +325,14 @@ export function DocView(props: Props) {
     }
   };
 
-  async function pickedPage(then: "sign" | "erase" | "marks" | "restore", i: number) {
+  async function pickedPage(then: "sign" | "erase" | "marks" | "restore" | "colorize", i: number) {
     const p = pages[i];
     if (then === "sign") return onSign(p.id);
     if (then === "erase") return onErase(p.id);
     setSheet(null);
-    setWorking(then === "marks" ? "Erasing pen marks" : "Restoring the photo");
+    setWorking(then === "marks" ? "Erasing pen marks" : then === "colorize" ? "Adding color" : "Restoring the photo");
     try {
-      const r = await runAsync({ op: "tool", tool: then === "marks" ? "eraseMarks" : "restore", src: await blobToRaster(p.result, 3000) });
+      const r = await runAsync({ op: "tool", tool: then === "marks" ? "eraseMarks" : then === "colorize" ? "colorize" : "restore", src: await blobToRaster(p.result, 3000) }, 90000);
       if (!r.raster) throw new Error("");
       await replaceResult(p, await rasterToBlob(r.raster, 0.92), rasterThumb(r.raster), r.raster.width, r.raster.height);
       setWorking(null);
@@ -358,6 +412,9 @@ export function DocView(props: Props) {
     { t: "erase", label: "Smart Erase", icon: <I.Eraser /> },
     { t: "marks", label: "Erase Marks", icon: <I.Wand /> },
     { t: "restore", label: "Restore Photo", icon: <I.Restore /> },
+    { t: "colorize", label: "Colorize", icon: <I.Drop /> },
+    { t: "translate", label: "Translate", icon: <I.Translate /> },
+    { t: "questions", label: "Incorrect Question", icon: <I.Question /> },
     { t: "merge", label: "Merge", icon: <I.Merge /> },
     { t: "extract", label: "Extract Pages", icon: <I.Cut /> },
     { t: "reorder", label: "Reorder", icon: <I.Sort /> },
@@ -503,6 +560,62 @@ export function DocView(props: Props) {
                   </>
                 )}
                 {!text && !ocr && <p className="muted">The first read downloads the language data once (about 3 MB for English, 2 MB for Arabic). Then it works offline.</p>}
+              </>
+            )}
+
+            {sheet.kind === "translate" && (
+              <>
+                {head("Translate")}
+                <label className="field-row" htmlFor="tr-to">
+                  <span><I.Translate size={18} /> Auto detect to</span>
+                  <select id="tr-to" className="field" value={translateTo} onChange={(e) => { setTranslateTo(e.target.value); setTranslated(null); }}>
+                    {TARGETS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                  </select>
+                </label>
+                {!textPages(text, pages.length).some((t) => t.trim()) && <>{langPick}{ocr ? progress : busyBtn("Read text", runOcr)}</>}
+                {ocr && text ? progress : null}
+                {text && !ocr && (
+                  <>
+                    {canTranslateOnDevice() && busyBtn(`Translate to ${targetLabel(translateTo)} on this phone`, doTranslate)}
+                    <a className="btn btn-quiet wide" href={onlineTranslateUrl(text.replace(/^— Page \d+ —$/gm, "").trim(), translateTo)} target="_blank" rel="noopener noreferrer">
+                      <I.Translate size={18} /> Open in Google Translate
+                    </a>
+                    <p className="muted small">{canTranslateOnDevice() ? "On this phone keeps the text private. Google Translate sends the text online." : "This phone has no offline translator, so translating opens Google Translate with the text. That sends the text online."}</p>
+                  </>
+                )}
+                {translated !== null && (
+                  <>
+                    <textarea className="ocr-text" dir="auto" value={translated} onChange={(e) => setTranslated(e.target.value)} />
+                    <div className="row-3">
+                      <button className="btn btn-quiet" onClick={async () => { try { await navigator.clipboard.writeText(translated); notify({ text: "Translation copied" }); } catch { notify({ text: "Copy is not available here", tone: "error" }); } }}><I.Copy /> Copy</button>
+                      <button className="btn btn-quiet" onClick={translatedWord}><I.Word size={18} /> Word</button>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {sheet.kind === "questions" && (
+              <>
+                {head("Incorrect Question")}
+                {!textPages(text, pages.length).some((t) => t.trim()) && <>{langPick}{ocr ? progress : busyBtn("Read the questions", runOcr)}</>}
+                {ocr && text ? progress : null}
+                {text && !ocr && (
+                  <>
+                    <p className="muted">Tick the questions you got wrong. {questionList.length} found. Fix the text in Extract Text if a question was split badly.</p>
+                    <ul className="q-list">
+                      {questionList.map((q, i) => (
+                        <li key={i}>
+                          <label className={"q-row" + (wrong.has(i) ? " on" : "")}>
+                            <input type="checkbox" checked={wrong.has(i)} onChange={() => setWrong((w) => { const n = new Set(w); if (n.has(i)) n.delete(i); else n.add(i); return n; })} />
+                            <span dir="auto">{q.length > 240 ? q.slice(0, 240) + "…" : q}</span>
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                    {busyBtn(wrong.size ? `Save review sheet (${wrong.size})` : "Tick at least one question", saveReview)}
+                  </>
+                )}
               </>
             )}
 

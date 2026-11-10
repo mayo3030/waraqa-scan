@@ -39,6 +39,33 @@ export async function toDocx(title: string, texts: string[], pages: PageRec[], w
   return d.Packer.toBlob(doc);
 }
 
+/** Review sheet for Incorrect Question: each question with space for the right answer. */
+export async function toReviewDocx(title: string, questions: string[]): Promise<Blob> {
+  const d = await import("docx");
+  const children: InstanceType<typeof d.Paragraph>[] = [];
+  children.push(new d.Paragraph({ text: title, heading: d.HeadingLevel.HEADING_1 }));
+  children.push(new d.Paragraph({ children: [new d.TextRun({ text: `${questions.length} ${questions.length === 1 ? "question" : "questions"} to review`, italics: true })] }));
+  const para = (text: string, opts: { bold?: boolean; color?: string } = {}) => {
+    const rtl = isArabic(text);
+    return new d.Paragraph({
+      bidirectional: rtl,
+      alignment: rtl ? d.AlignmentType.RIGHT : d.AlignmentType.LEFT,
+      spacing: { after: 80 },
+      children: [new d.TextRun({ text, rightToLeft: rtl, bold: opts.bold, color: opts.color })],
+    });
+  };
+  questions.forEach((q, i) => {
+    children.push(new d.Paragraph({ text: `Question ${i + 1}`, heading: d.HeadingLevel.HEADING_2 }));
+    for (const line of q.split(/\n/)) children.push(para(line));
+    for (const label of ["My answer:", "Correct answer:", "Why I got it wrong:"]) {
+      children.push(para(label, { bold: true, color: "3A3F8F" }));
+      children.push(para("______________________________________________"));
+    }
+  });
+  const doc = new d.Document({ creator: "Waraqa Scan", title, sections: [{ children }] });
+  return d.Packer.toBlob(doc);
+}
+
 /** Excel file: one sheet per page, rows and columns guessed from the text. */
 export async function toXlsx(texts: string[]): Promise<Blob> {
   const X = await import("xlsx");

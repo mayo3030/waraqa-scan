@@ -11,6 +11,10 @@ import { CameraScreen, type Shots } from "./screens/Camera";
 import { IdPhotoScreen } from "./screens/IdPhoto";
 import { SignScreen } from "./screens/Sign";
 import { EraseScreen } from "./screens/Erase";
+import { CountScreen } from "./screens/Count";
+import { GreetingScreen } from "./screens/Greeting";
+import { quickSave } from "./lib/quicksave";
+import { lockOrientation } from "./lib/device";
 import { useDocs } from "./screens/useDocs";
 import { blobToRaster, rasterToBlob } from "./lib/io";
 import { detectAsync, runAsync } from "./lib/engine";
@@ -19,8 +23,8 @@ import { addPages, getDoc, getPage, getPages, newDoc, type PageRec } from "./lib
 import { NO_ADJUST, type Adjust, type FilterKind } from "./lib/filters";
 import { seedSample } from "./lib/sample";
 import { yieldToPaint } from "./lib/timeout";
-import { modeInfo, postProcess, type Mode } from "./lib/modes";
-import { usePrefs } from "./lib/prefs";
+import { modeInfo, postProcess, type Mode, type ModeOpts } from "./lib/modes";
+import { readPrefs, usePrefs } from "./lib/prefs";
 import { pageFromRaster } from "./lib/pagemake";
 import { isPdf, pdfToRasters } from "./lib/pdfimport";
 import { buildPdf } from "./lib/pdf";
@@ -42,6 +46,7 @@ export interface Session {
   hd?: boolean;
   stamps?: string[][]; // timestamp lines, one per photo of the session
   fresh?: string[]; // ids of pages saved so far in this session
+  opts?: ModeOpts; // choices made on the camera
 }
 
 type Tab = "home" | "docs" | "tools" | "me";
@@ -52,15 +57,17 @@ type Route =
   | { name: "crop"; s: Session }
   | { name: "filter"; s: Session }
   | { name: "idphoto"; photo: Raster }
+  | { name: "count"; photo: Raster }
+  | { name: "greeting"; photo: Raster }
   | { name: "sign"; docId: string; page: PageRec; label: string }
   | { name: "erase"; docId: string; page: PageRec; label: string };
 
 export interface Toast { text: string; tone?: "error" }
 
-interface Extra { mode?: Mode; stamps?: string[][]; fresh?: string[] }
+interface Extra { mode?: Mode; stamps?: string[][]; fresh?: string[]; opts?: ModeOpts }
 
 export function App() {
-  const [route, setRoute] = useState<Route>({ name: "tab", tab: "home" });
+  const [route, setRoute] = useState<Route>(() => (readPrefs().startCamera ? { name: "camera", mode: "scan" } : { name: "tab", tab: "home" }));
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
   const [rev, setRev] = useState(0);
@@ -76,6 +83,8 @@ export function App() {
     clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(null), 3200);
   }, []);
+
+  useEffect(() => { void lockOrientation(prefs.orientation); }, [prefs.orientation]);
 
   const [fatal, setFatal] = useState<string | null>(null);
   useEffect(() => {
@@ -111,6 +120,8 @@ export function App() {
         if (page) {
           quad = page.quad;
           autoFound = true;
+        } else if (!prefs.autoBorders) {
+          quad = fullQuad(src.width, src.height, 0);
         } else {
           try {
             const d = await detectAsync(src);
@@ -137,7 +148,7 @@ export function App() {
         setBusy(null);
       }
     },
-    [notify, prefs.hd],
+    [notify, prefs.hd, prefs.autoBorders],
   );
 
   const editPage = useCallback(
@@ -151,7 +162,7 @@ export function App() {
   const afterSave = useCallback(
     async (s: Session, docId: string) => {
       bump();
-      const extra: Extra = { mode: s.mode, stamps: s.stamps, fresh: s.fresh };
+      const extra: Extra = { mode: s.mode, stamps: s.stamps, fresh: s.fresh, opts: s.opts };
       if (s.queue.length) {
         notify({ text: `Page saved. ${s.queue.length} more to go` });
         openPhoto(s.queue, docId, undefined, extra);
@@ -162,27 +173,36 @@ export function App() {
         openDoc(docId);
         return;
       }
+      await finishMode(s.mode, docId, s.fresh ?? [], s.stamps, s.opts);
+    },
+    [notify, openPhoto, bump, prefs.paper], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  /** The mode's own last step (ID sheet, split book pages, open a tool). */
+  const finishMode = async (mode: Mode, docId: string, fresh: string[], stamps?: string[][], opts?: ModeOpts) => {
       setBusy("Finishing");
       try {
-        const after = await postProcess(s.mode, docId, s.fresh ?? [], { stamps: s.stamps, paper: prefs.paper === "a4" ? "a4" : "letter" }, setBusy);
+        const after = await postProcess(mode, docId, fresh, { stamps, paper: prefs.paper === "a4" ? "a4" : "letter", opts }, setBusy);
         bump();
         notify({ text: "Saved" });
-        openDoc(after.open, after.tool);
+        if (after.erase) void pageEditor("erase", after.open, after.erase);
+        else openDoc(after.open, after.tool);
       } catch {
         notify({ text: "The pages are saved, but the last step did not finish", tone: "error" });
         openDoc(docId);
       } finally {
         setBusy(null);
       }
-    },
-    [notify, openPhoto, bump, prefs.paper],
-  );
+  };
 
   const onShots = useCallback(async (shots: Shots, docId?: string) => {
     const { blobs, mode } = shots;
-    if (mode === "idphoto") {
+    if (mode === "idphoto" || mode === "count" || mode === "greeting") {
       setBusy("Opening the photo");
-      try { setRoute({ name: "idphoto", photo: await blobToRaster(blobs[0], 2400) }); }
+      try {
+        const photo = await blobToRaster(blobs[0], mode === "count" ? 1600 : 2400);
+        setRoute(mode === "idphoto" ? { name: "idphoto", photo } : mode === "count" ? { name: "count", photo } : { name: "greeting", photo });
+      }
       catch { notify({ text: "That photo could not be opened", tone: "error" }); }
       finally { setBusy(null); }
       return;
@@ -196,15 +216,30 @@ export function App() {
         const [first, ...more] = rasters;
         const r = await runAsync({ op: "stitch", src: first, more }, 120000);
         setBusy(null);
-        openPhoto([await rasterToBlob(r.raster!, 0.92)], docId, undefined, { mode });
+        openPhoto([await rasterToBlob(r.raster!, 0.92)], docId, undefined, { mode, opts: shots.opts });
       } catch {
         setBusy(null);
         notify({ text: "The shots could not be joined", tone: "error" });
       }
       return;
     }
-    openPhoto(blobs, docId, undefined, { mode, stamps: shots.stamps });
-  }, [notify, openPhoto]);
+    // Adjust after each scan off: save right away (formula and erase still need the corners)
+    if (!prefs.adjustEach && mode !== "formula" && mode !== "erase") {
+      setBusy("Saving");
+      await yieldToPaint();
+      try {
+        const r = await quickSave(blobs, docId, mode, { hd: prefs.hd, autoBorders: prefs.autoBorders }, setBusy);
+        bump();
+        if (mode === "scan") { setBusy(null); notify({ text: blobs.length > 1 ? `${blobs.length} pages saved` : "Page saved" }); openDoc(r.docId); return; }
+        await finishMode(mode, r.docId, r.fresh, shots.stamps, shots.opts);
+      } catch {
+        setBusy(null);
+        notify({ text: "The photos could not be saved. Storage may be full.", tone: "error" });
+      }
+      return;
+    }
+    openPhoto(blobs, docId, undefined, { mode, stamps: shots.stamps, opts: shots.opts });
+  }, [notify, openPhoto, prefs.adjustEach, prefs.hd, prefs.autoBorders, prefs.paper, bump]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Import Files: PDFs and images go in as they are, without cropping. */
   const importFiles = useCallback(async (files: File[]) => {
@@ -327,6 +362,8 @@ export function App() {
           start={route.tool}
           paper={prefs.paper}
           setPaper={(paper) => setPrefs({ paper })}
+          translateTo={prefs.translateTo}
+          setTranslateTo={(translateTo) => setPrefs({ translateTo })}
           notify={notify}
           onBack={home}
           onPhotos={(b) => openPhoto(b, route.id)}
@@ -348,6 +385,7 @@ export function App() {
           onClose={() => (route.docId ? openDoc(route.docId) : home())}
           onShots={(s) => onShots(s, route.docId)}
           onAllTools={() => setRoute({ name: "tab", tab: "tools" })}
+          onDocTool={setPickFor}
         />
       )}
       {route.name === "crop" && (
@@ -358,6 +396,12 @@ export function App() {
       )}
       {route.name === "idphoto" && (
         <IdPhotoScreen photo={route.photo} notify={notify} onCancel={home} onSaved={(id) => { bump(); notify({ text: "ID photo saved" }); openDoc(id); }} />
+      )}
+      {route.name === "count" && (
+        <CountScreen photo={route.photo} notify={notify} onCancel={home} onSaved={(id) => { bump(); notify({ text: "Count saved" }); openDoc(id); }} />
+      )}
+      {route.name === "greeting" && (
+        <GreetingScreen photo={route.photo} notify={notify} onCancel={home} onSaved={(id) => { bump(); notify({ text: "Card saved" }); openDoc(id); }} />
       )}
       {route.name === "sign" && (
         <SignScreen page={route.page} label={route.label} notify={notify} onDone={(changed) => { if (changed) bump(); openDoc(route.docId); }} />
@@ -416,6 +460,7 @@ const TOOL_NAMES: Partial<Record<DocTool, string>> = {
   word: "To Word", excel: "To Excel", pptx: "To PPT", pdf: "To PDF", long: "Long image", sign: "Sign",
   watermark: "Watermark", erase: "Smart erase", marks: "Erase marks", restore: "Restore photo", merge: "Merge files",
   extract: "Extract pages", reorder: "Reorder pages", lock: "Lock with password", compress: "Compress", print: "Print",
+  colorize: "Colorize", translate: "Translate", questions: "Incorrect Question",
 };
 
 function DocPicker({ rev, tool, onPick, onClose }: { rev: number; tool: DocTool; onPick(id: string): void; onClose(): void }) {

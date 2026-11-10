@@ -32,6 +32,10 @@ const GROUPS: { title: string; items: Item[] }[] = [
       { kind: "cam", mode: "mega", label: "Mega Scan", icon: <I.Mega /> },
       { kind: "cam", mode: "timestamp", label: "Timestamp", icon: <I.Stamp /> },
       { kind: "cam", mode: "ocr", label: "Extract Text", icon: <I.Text /> },
+      { kind: "cam", mode: "translate", label: "Translate", icon: <I.Translate /> },
+      { kind: "cam", mode: "question", label: "Incorrect Question", icon: <I.Question /> },
+      { kind: "cam", mode: "formula", label: "Formula", icon: <I.Formula /> },
+      { kind: "cam", mode: "restore", label: "Restore Photo", icon: <I.Restore /> },
     ],
   },
   {
@@ -61,6 +65,8 @@ const GROUPS: { title: string; items: Item[] }[] = [
       { kind: "doc", tool: "erase", label: "Smart Erase", icon: <I.Eraser /> },
       { kind: "doc", tool: "marks", label: "Erase Marks", icon: <I.Wand /> },
       { kind: "doc", tool: "restore", label: "Restore Photo", icon: <I.Restore /> },
+      { kind: "doc", tool: "colorize", label: "Colorize", icon: <I.Drop /> },
+      { kind: "doc", tool: "translate", label: "Translate", icon: <I.Translate /> },
       { kind: "doc", tool: "merge", label: "Merge Files", icon: <I.Merge /> },
       { kind: "doc", tool: "extract", label: "Extract Pages", icon: <I.Cut /> },
       { kind: "doc", tool: "reorder", label: "Reorder Pages", icon: <I.Sort /> },
@@ -73,6 +79,8 @@ const GROUPS: { title: string; items: Item[] }[] = [
     items: [
       { kind: "doc", tool: "print", label: "Print", icon: <I.Print /> },
       { kind: "cam", mode: "code", label: "Scan Code", icon: <I.Qr /> },
+      { kind: "cam", mode: "count", label: "CountCam", icon: <I.Count /> },
+      { kind: "cam", mode: "greeting", label: "Greeting Card", icon: <I.Card /> },
     ],
   },
 ];
@@ -114,7 +122,7 @@ export function Tools({ onCamera, onImages, onFiles, onDocTool, onPdfFile }: Pro
             </div>
           </section>
         ))}
-        <p className="muted small">Everything here runs on your phone. Photo translation, formula solving and AI chat need an online service, so they are not in this version.</p>
+        <p className="muted small">Everything here runs on your phone. Translate uses the phone's own translator where Android has one, otherwise it opens Google Translate when you tap it. Editable equations from formulas, AI photo repair and AI chat need an online service, so they are not in this version.</p>
       </main>
     </>
   );

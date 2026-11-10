@@ -37,6 +37,20 @@ Everything stays on the device (IndexedDB). There is no server.
 
 Not included because they need an online service: photo translation, formula solving, AI chat, cloud sync.
 
+## Features added in 1.2
+
+- **All features** button on the camera: every mode, grouped (scan, convert, doc tools, enhance, screens, more).
+- **ID Cards** presets: General, Driver License, ID Card, Passport (one page, 125 x 88 mm), Bank Card. Real size on one A4 or Letter page, optional "For ___ use only" watermark.
+- **Formula**: capture, crop to the formulas, save to Word as a picture plus read text. Editable equations need an online service and are not made.
+- **Translate**: language picker (auto detect to a target). Reads the text on the phone, translates on the phone where the WebView has a built-in translator, otherwise opens Google Translate with the text when tapped (that goes online).
+- **Incorrect Question**: reads a test, splits it into numbered questions (English and Arabic numbering), you tick the wrong ones, saves a Word review sheet.
+- **Restore Photo** mode with Restore (dust, fading) and Colorize (warm tones on black and white). Both are simple on-phone versions, not AI.
+- **Book** auto capture: takes the next spread after the page turns and the picture holds still.
+- **Smart Erase** as a camera mode, **CountCam** (count objects on a plain background, fix by tapping), **Greeting Card** (four designs of our own, your text).
+- **Scan Code**: barcodes as well as QR, a history of the last 50, flashlight.
+- **Camera settings**: orientation lock (auto, portrait, landscape), grid, shutter sound, spirit level, HD, location.
+- **Scan settings**: auto adjust borders, adjust after each scan (off saves straight away), start with camera, use system camera, import button, save photos to Pictures/Waraqa (Android 10+), double-focus.
+
 ## Run it
 
 ```

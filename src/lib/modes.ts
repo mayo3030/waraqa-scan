@@ -4,13 +4,34 @@ import { blobToRaster } from "./io";
 import { runAsync } from "./engine";
 import { pageFromRaster } from "./pagemake";
 import { addPages, deletePage, getDoc, getPages, putDoc, type DocRec } from "./store";
-import { stampImage } from "./stamp";
+import { stampImage, watermarkImage } from "./stamp";
+import { CARD_MM } from "./imaging";
+import { pageFromImage } from "./pagemake";
 import { replaceResult } from "./store";
 import { rasterThumb, rasterToBlob } from "./io";
 
 export type Mode =
   | "scan" | "ocr" | "word" | "excel" | "idcard" | "receipt" | "book" | "whiteboard"
-  | "slides" | "mega" | "idphoto" | "timestamp" | "code";
+  | "slides" | "mega" | "idphoto" | "timestamp" | "code"
+  | "formula" | "translate" | "question" | "restore" | "erase" | "count" | "greeting";
+
+export type IdPreset = "general" | "license" | "idcard" | "passport" | "bank";
+export const ID_PRESETS: { id: IdPreset; label: string; sides: 1 | 2; card: [number, number] }[] = [
+  { id: "general", label: "General", sides: 2, card: CARD_MM.card },
+  { id: "license", label: "Driver License", sides: 2, card: CARD_MM.card },
+  { id: "idcard", label: "ID Card", sides: 2, card: CARD_MM.card },
+  { id: "passport", label: "Passport", sides: 1, card: CARD_MM.passport },
+  { id: "bank", label: "Bank Card", sides: 2, card: CARD_MM.card },
+];
+export const idPreset = (id?: IdPreset) => ID_PRESETS.find((p) => p.id === id) ?? ID_PRESETS[0];
+
+/** Choices made on the camera that the steps after saving need. */
+export interface ModeOpts {
+  id?: IdPreset;
+  watermark?: string; // "For ___ use only" text for ID sheets
+  restore?: "restore" | "colorize";
+  paper?: "a4" | "letter"; // ID sheet paper
+}
 
 export interface ModeInfo {
   id: Mode;
@@ -35,13 +56,23 @@ export const MODES: ModeInfo[] = [
   { id: "mega", label: "Mega Scan", shots: "many", filter: "enhance", help: "For long pages: take the page top to bottom in parts, with some overlap between shots. They are joined into one page." },
   { id: "idphoto", label: "ID Photo", shots: "one", filter: "original", tag: "Photo", help: "Take a photo of the face against a plain light wall. Then pick a size, Waraqa makes one photo and a 4 x 6 print sheet." },
   { id: "timestamp", label: "Timestamp", shots: "many", filter: "original", help: "Each photo gets the date and time written on it. Turn on location in the menu to add the place." },
-  { id: "code", label: "Scan Code", shots: "one", filter: "original", help: "Point at a QR code. The result shows as soon as it is read." },
+  { id: "code", label: "Scan Code", shots: "one", filter: "original", help: "Point at a QR code or barcode. The result shows as soon as it is read, and the last ones are kept in History." },
+  { id: "formula", label: "Formula", shots: "one", filter: "enhance", tag: "Formula", help: "Photograph the page, then drag the corners to just the formulas. Waraqa saves them in a Word file as a picture with the text it could read. Turning formulas into editable equations needs an online service, so it is not done here." },
+  { id: "translate", label: "Translate", shots: "many", filter: "enhance", help: "Scan the page and pick the language at the top. Waraqa reads the text on the phone, then translates it on the phone where Android offers that, or opens Google Translate with the text when you tap it." },
+  { id: "question", label: "Incorrect Question", shots: "many", filter: "enhance", tag: "Questions", help: "Scan a test or worksheet. Waraqa reads it and splits it into numbered questions. Tick the ones you got wrong and save a review sheet in Word with space for the right answer." },
+  { id: "restore", label: "Restore Photo", shots: "one", filter: "original", tag: "Photo", help: "Photograph an old print flat, without glare. Restore removes dust and fading. Colorize adds warm tones to a black and white photo. Real AI repair and colorizing need an online service, so this is the on-phone version." },
+  { id: "erase", label: "Smart Erase", shots: "one", filter: "enhance", help: "Scan the page, then paint over what you want gone. Waraqa fills it in from the area around it." },
+  { id: "count", label: "CountCam", shots: "one", filter: "original", tag: "Count", help: "Photograph things from above on a plain background, like pipes, coins or boxes. Waraqa marks and counts them. Tap to add one it missed, tap a mark to remove it." },
+  { id: "greeting", label: "Greeting Card", shots: "one", filter: "original", tag: "Card", help: "Take or import a photo, pick a design and write your message. The card is saved as a page you can share or print." },
 ];
+
+/** Modes whose photo goes to its own screen instead of corners and filters. */
+export const OWN_SCREEN: Mode[] = ["idphoto", "count", "greeting"];
 
 export const modeInfo = (m: Mode = "scan") => MODES.find((x) => x.id === m) ?? MODES[0];
 
 /** Where the app goes after a mode finished saving. */
-export type After = { open: string; tool?: "text" | "word" | "excel" };
+export type After = { open: string; tool?: "text" | "word" | "excel" | "translate" | "questions"; erase?: string };
 
 /**
  * Runs after the last photo of a session is saved. `fresh` lists the page ids
@@ -51,7 +82,7 @@ export async function postProcess(
   mode: Mode,
   docId: string,
   fresh: string[],
-  extra: { stamps?: string[][]; paper?: "letter" | "a4" },
+  extra: { stamps?: string[][]; paper?: "letter" | "a4"; opts?: ModeOpts },
   progress: (label: string) => void,
 ): Promise<After> {
   const doc = await getDoc(docId);
@@ -65,16 +96,33 @@ export async function postProcess(
     case "ocr": return { open: docId, tool: "text" };
     case "word": return { open: docId, tool: "word" };
     case "excel": return { open: docId, tool: "excel" };
+    case "formula": return { open: docId, tool: "word" };
+    case "translate": return { open: docId, tool: "translate" };
+    case "question": return { open: docId, tool: "questions" };
+    case "erase": return { open: docId, erase: mine[0]?.id };
     case "idcard": {
       if (!mine.length) break;
-      progress("Putting both sides on one page");
+      const preset = idPreset(extra.opts?.id);
+      progress(mine.length > 1 ? "Putting both sides on one page" : "Placing it on the page");
       const sides = [];
-      for (const p of mine) sides.push(await blobToRaster(p.result, 1400));
+      for (const p of mine) sides.push(await blobToRaster(p.result, 1600));
       const [first, ...more] = sides;
-      const r = await runAsync({ op: "idcard", src: first, more, paper: extra.paper ?? "letter" });
+      const r = await runAsync({ op: "idcard", src: first, more, paper: extra.opts?.paper ?? "a4", card: preset.card });
       if (r.raster) {
-        await addPages(docId, [await pageFromRaster(r.raster)]);
+        const wm = extra.opts?.watermark?.trim();
+        const page = wm ? pageFromImage(await watermarkImage(await rasterToBlob(r.raster, 0.92), wm)) : await pageFromRaster(r.raster);
+        await addPages(docId, [page]);
         for (const p of mine) await deletePage(docId, p.id);
+        if (preset.id !== "general") await tag((await getDoc(docId))!, preset.label);
+      }
+      break;
+    }
+    case "restore": {
+      const colorize = extra.opts?.restore === "colorize";
+      progress(colorize ? "Adding color" : "Restoring the photo");
+      for (const p of mine) {
+        const r = await runAsync({ op: "tool", tool: colorize ? "colorize" : "restore", src: await blobToRaster(p.result, 2400) }, 90000);
+        if (r.raster) await replaceResult(p, await rasterToBlob(r.raster, 0.92), rasterThumb(r.raster), r.raster.width, r.raster.height);
       }
       break;
     }

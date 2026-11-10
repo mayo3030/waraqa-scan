@@ -22,7 +22,7 @@ export interface FolderRec {
   createdAt: number;
 }
 
-export const TAGS = ["ID Card", "Receipt", "Business Card", "Note", "Book", "Whiteboard", "Slides", "Contract", "Photo"] as const;
+export const TAGS = ["ID Card", "Receipt", "Business Card", "Note", "Book", "Whiteboard", "Slides", "Contract", "Photo", "Formula", "Questions", "Count", "Card"] as const;
 
 export interface PageRec {
   id: string;

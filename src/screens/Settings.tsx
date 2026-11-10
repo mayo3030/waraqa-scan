@@ -5,6 +5,7 @@ import type { Prefs } from "../lib/prefs";
 import { UpdateButton } from "./UpdateButton";
 import { canUpdate } from "../lib/updater";
 import { memoryOnly } from "../lib/store";
+import { CameraSettings, ScanSettings } from "./ScanSettings";
 
 interface Props { prefs: Prefs; setPrefs(p: Partial<Prefs>): void; docCount: number }
 
@@ -41,18 +42,16 @@ export function Settings({ prefs, setPrefs, docCount }: Props) {
               ))}
             </div>
           </div>
-          <label className="switch-row">
-            <span>High resolution scans (bigger files)</span>
-            <input type="checkbox" checked={prefs.hd} onChange={(e) => setPrefs({ hd: e.target.checked })} />
-          </label>
-          <label className="switch-row">
-            <span>Grid lines on the camera</span>
-            <input type="checkbox" checked={prefs.grid} onChange={(e) => setPrefs({ grid: e.target.checked })} />
-          </label>
-          <label className="switch-row">
-            <span>Location on timestamp photos</span>
-            <input type="checkbox" checked={prefs.location} onChange={(e) => setPrefs({ location: e.target.checked })} />
-          </label>
+        </section>
+
+        <section className="set-group">
+          <h2>Scan settings</h2>
+          <ScanSettings prefs={prefs} setPrefs={setPrefs} />
+        </section>
+
+        <section className="set-group">
+          <h2>Camera</h2>
+          <CameraSettings prefs={prefs} setPrefs={setPrefs} />
         </section>
 
         <section className="set-group">
@@ -62,7 +61,7 @@ export function Settings({ prefs, setPrefs, docCount }: Props) {
             {space && space.used > 0 ? `, using ${mb(space.used)} on this phone` : ""}.
           </p>
           {memoryOnly && <p className="note">This view cannot keep files, so scans are lost when it closes.</p>}
-          <p className="muted small">Your scans, signatures and read text stay on this phone. Nothing is uploaded.</p>
+          <p className="muted small">Your scans, signatures and read text stay on this phone. Nothing is uploaded, unless you choose Open in Google Translate.</p>
         </section>
       </main>
     </>

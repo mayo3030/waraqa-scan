@@ -31,6 +31,30 @@ export async function stampImage(img: Blob, lines: string[]): Promise<{ blob: Bl
   return finishCanvas(c);
 }
 
+/** Light diagonal text repeated across the image, like "For bank use only". */
+export async function watermarkImage(img: Blob, text: string) {
+  const el = await decodeImageElement(img);
+  const c = document.createElement("canvas");
+  c.width = el.naturalWidth; c.height = el.naturalHeight;
+  const ctx = c.getContext("2d")!;
+  ctx.drawImage(el, 0, 0);
+  const size = Math.max(18, Math.round(Math.min(c.width, c.height) / 22));
+  ctx.font = `600 ${size}px system-ui, sans-serif`;
+  ctx.fillStyle = "rgba(90, 96, 120, 0.22)";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const step = Math.max(ctx.measureText(text).width + size * 3, size * 8);
+  ctx.save();
+  ctx.translate(c.width / 2, c.height / 2);
+  ctx.rotate(-Math.PI / 6);
+  const span = Math.hypot(c.width, c.height);
+  for (let y = -span / 2, row = 0; y < span / 2; y += size * 4, row++) {
+    for (let x = -span / 2 + (row % 2) * (step / 2); x < span / 2; x += step) ctx.fillText(text, x, y);
+  }
+  ctx.restore();
+  return finishCanvas(c);
+}
+
 export async function finishCanvas(c: HTMLCanvasElement, quality = 0.9) {
   const blob = await new Promise<Blob>((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("encode failed"))), "image/jpeg", quality));
   const s = Math.min(1, 360 / Math.max(c.width, c.height));
