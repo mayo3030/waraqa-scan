@@ -5,13 +5,21 @@ import * as I from "../icons";
  * Each button is a <label> around its file input, so the tap itself opens
  * the picker (more reliable in in-app browsers than input.click()).
  */
-export function PhotoButtons({ onPhotos, compact }: { onPhotos(b: Blob[]): void; compact?: boolean }) {
+export function PhotoButtons({ onPhotos, compact, importOnly }: { onPhotos(b: Blob[]): void; compact?: boolean; importOnly?: boolean }) {
   const take = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith("image/") || !f.type);
     e.target.value = "";
     if (files.length) onPhotos(files);
   };
   const sfx = compact ? "-doc" : "-home";
+  if (importOnly) {
+    return (
+      <label className="btn btn-quiet" htmlFor={"pick-gallery" + sfx}>
+        <input id={"pick-gallery" + sfx} className="file-input" type="file" accept="image/*" multiple onChange={take} />
+        <I.Images /> Import
+      </label>
+    );
+  }
   return (
     <div className={"photo-buttons" + (compact ? " compact" : "")}>
       <label className="btn btn-quiet" htmlFor={"pick-gallery" + sfx}>

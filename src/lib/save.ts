@@ -73,3 +73,30 @@ export function canShareFiles(f: File) {
 export function safeName(name: string) {
   return name.replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim().slice(0, 80) || "scan";
 }
+
+/** Hands several files over at once (share sheet on Android, downloads elsewhere). */
+export async function saveMany(files: { name: string; data: Blob }[], title?: string): Promise<SaveOutcome> {
+  if (!files.length) return "unavailable";
+  if (files.length === 1) return saveFile(files[0].name, files[0].data);
+  if (isNative()) {
+    try {
+      const uris: string[] = [];
+      for (const f of files) {
+        const { uri } = await Filesystem.writeFile({
+          path: "exports/" + f.name,
+          data: await toBase64(f.data),
+          directory: Directory.Cache,
+          recursive: true,
+        });
+        uris.push(uri);
+      }
+      await Share.share({ title: title ?? files[0].name, files: uris, dialogTitle: "Save or send" });
+      return "saved";
+    } catch (e: any) {
+      return String(e?.message ?? e).toLowerCase().includes("cancel") ? "declined" : "unavailable";
+    }
+  }
+  let last: SaveOutcome = "saved";
+  for (const f of files) last = await saveFile(f.name, f.data);
+  return last;
+}

@@ -13,9 +13,65 @@ export const PAPER: { id: PaperSize; label: string }[] = [
 
 const SIZES = { letter: [215.9, 279.4], a4: [210, 297] } as const;
 
-export async function buildPdf(pages: PageRec[], paper: PaperSize, title: string): Promise<Blob> {
+export interface PdfOptions {
+  /** Smaller file: pages at about 110 dpi and stronger JPEG compression. */
+  compress?: boolean;
+  /** Text drawn diagonally across every page. */
+  watermark?: string;
+  /** Asks for this password before the PDF opens. */
+  password?: string;
+}
+
+/** Page image ready for export: optional downscale and watermark, as JPEG data URL. */
+export async function exportImage(
+  p: { result: Blob; width: number; height: number },
+  o: { maxSide?: number; quality?: number; watermark?: string } = {},
+): Promise<{ data: string; width: number; height: number }> {
+  if (!o.maxSide && !o.watermark && !o.quality) return { data: await blobToDataUrl(p.result), width: p.width, height: p.height };
+  const url = URL.createObjectURL(p.result);
+  try {
+    const img = await new Promise<HTMLImageElement>((res, rej) => {
+      const el = new Image();
+      el.onload = () => res(el);
+      el.onerror = () => rej(new Error("A page image could not be opened"));
+      el.src = url;
+    });
+    const s = o.maxSide ? Math.min(1, o.maxSide / Math.max(img.naturalWidth, img.naturalHeight)) : 1;
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+    const ctx = c.getContext("2d")!;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    if (o.watermark) drawWatermark(ctx, c.width, c.height, o.watermark);
+    return { data: c.toDataURL("image/jpeg", o.quality ?? 0.88), width: c.width, height: c.height };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+export function drawWatermark(ctx: CanvasRenderingContext2D, w: number, h: number, text: string) {
+  const size = Math.max(18, Math.round(Math.min(w, h) / 11));
+  ctx.save();
+  ctx.translate(w / 2, h / 2);
+  ctx.rotate(-Math.atan2(h, w));
+  ctx.font = `600 ${size}px "IBM Plex Sans Arabic", system-ui, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = "rgba(60, 64, 110, 0.18)";
+  const step = size * 3.2;
+  const diag = Math.hypot(w, h);
+  for (let y = -diag / 2; y <= diag / 2; y += step) ctx.fillText(text, 0, y, diag * 0.9);
+  ctx.restore();
+}
+
+export async function buildPdf(pages: PageRec[], paper: PaperSize, title: string, opts: PdfOptions = {}): Promise<Blob> {
   let pdf: jsPDF | null = null;
   for (const p of pages) {
+    const img = await exportImage(p, {
+      maxSide: opts.compress ? 1240 : undefined,
+      quality: opts.compress ? 0.6 : undefined,
+      watermark: opts.watermark?.trim() || undefined,
+    });
     const landscape = p.width > p.height;
     let pw: number, ph: number;
     if (paper === "fit") {
@@ -26,12 +82,17 @@ export async function buildPdf(pages: PageRec[], paper: PaperSize, title: string
       [pw, ph] = landscape ? [b, a] : [a, b];
     }
     const orient = pw > ph ? "landscape" : "portrait";
-    if (!pdf) pdf = new jsPDF({ unit: "mm", format: [pw, ph], orientation: orient, compress: true });
-    else pdf.addPage([pw, ph], orient);
-    const s = Math.min(pw / p.width, ph / p.height);
-    const w = p.width * s, h = p.height * s;
-    const data = await blobToDataUrl(p.result);
-    pdf.addImage(data, "JPEG", (pw - w) / 2, (ph - h) / 2, w, h, undefined, "FAST");
+    if (!pdf) {
+      pdf = new jsPDF({
+        unit: "mm", format: [pw, ph], orientation: orient, compress: true,
+        ...(opts.password
+          ? { encryption: { userPassword: opts.password, ownerPassword: opts.password, userPermissions: ["print", "copy"] } }
+          : {}),
+      });
+    } else pdf.addPage([pw, ph], orient);
+    const s = Math.min(pw / img.width, ph / img.height);
+    const w = img.width * s, h = img.height * s;
+    pdf.addImage(img.data, "JPEG", (pw - w) / 2, (ph - h) / 2, w, h, undefined, "FAST");
   }
   if (!pdf) throw new Error("This document has no pages yet");
   pdf.setProperties({ title, creator: "Waraqa Scan" });

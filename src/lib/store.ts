@@ -12,7 +12,17 @@ export interface DocRec {
   pageIds: string[];
   text?: string; // extracted text, used by search
   sample?: boolean;
+  folderId?: string; // missing = top level
+  tags?: string[]; // e.g. "ID Card", "Receipt"
 }
+
+export interface FolderRec {
+  id: string;
+  name: string;
+  createdAt: number;
+}
+
+export const TAGS = ["ID Card", "Receipt", "Business Card", "Note", "Book", "Whiteboard", "Slides", "Contract", "Photo"] as const;
 
 export interface PageRec {
   id: string;
@@ -31,14 +41,18 @@ export interface PageRec {
 interface Schema extends DBSchema {
   docs: { key: string; value: DocRec };
   pages: { key: string; value: PageRec; indexes: { byDoc: string } };
+  folders: { key: string; value: FolderRec };
 }
 
 let dbp: Promise<IDBPDatabase<Schema>> | null = null;
 function openReal() {
-  const open = openDB<Schema>("waraqa-scan", 1, {
-    upgrade(d) {
-      d.createObjectStore("docs", { keyPath: "id" });
-      d.createObjectStore("pages", { keyPath: "id" }).createIndex("byDoc", "docId");
+  const open = openDB<Schema>("waraqa-scan", 2, {
+    upgrade(d, oldVersion) {
+      if (oldVersion < 1) {
+        d.createObjectStore("docs", { keyPath: "id" });
+        d.createObjectStore("pages", { keyPath: "id" }).createIndex("byDoc", "docId");
+      }
+      if (oldVersion < 2) d.createObjectStore("folders", { keyPath: "id" });
     },
   });
   const timeout = new Promise<never>((_, rej) => setTimeout(() => rej(new Error("storage timeout")), 4000));
@@ -50,7 +64,7 @@ export let memoryOnly = false;
 
 // Minimal in-memory stand-in with the few calls this file uses.
 function memoryDb(): IDBPDatabase<Schema> {
-  const stores: Record<string, Map<string, any>> = { docs: new Map(), pages: new Map() };
+  const stores: Record<string, Map<string, any>> = { docs: new Map(), pages: new Map(), folders: new Map() };
   const store = (name: string) => ({
     get: async (k: string) => stores[name].get(k),
     getAll: async () => [...stores[name].values()],
@@ -62,6 +76,7 @@ function memoryDb(): IDBPDatabase<Schema> {
     get: (n: string, k: string) => store(n).get(k),
     getAll: (n: string) => store(n).getAll(),
     put: (n: string, v: any) => store(n).put(v),
+    delete: (n: string, k: string) => store(n).delete(k),
     transaction: () => ({ objectStore: (n: string) => store(n), done: Promise.resolve() }),
   };
   return api;
@@ -140,4 +155,53 @@ export function defaultName(now = new Date()) {
   const d = now.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
   const t = now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
   return `Scan ${d}, ${t}`;
+}
+
+// ---- Folders ----
+
+export async function listFolders(): Promise<FolderRec[]> {
+  const all = await (await db()).getAll("folders");
+  return all.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function putFolder(f: FolderRec) {
+  await (await db()).put("folders", f);
+}
+
+/** Removes the folder; its documents move back to the top level. */
+export async function deleteFolder(id: string) {
+  const d = await db();
+  for (const doc of await d.getAll("docs")) {
+    if (doc.folderId === id) await d.put("docs", { ...doc, folderId: undefined });
+  }
+  await d.delete("folders", id);
+}
+
+// ---- Page helpers used by the tools ----
+
+/** Saves new pages (already built) at the end of a document, in order. */
+export async function addPages(docId: string, pages: Omit<PageRec, "id" | "docId">[]) {
+  for (const p of pages) await savePage({ ...p, id: newId(), docId });
+}
+
+/** Copies pages into another document (merge files, extract pages). */
+export async function copyPages(pages: PageRec[], docId: string) {
+  for (const p of pages) await savePage({ ...p, id: newId(), docId });
+}
+
+/** Replaces a page's finished image, keeping its photo and settings. */
+export async function replaceResult(page: PageRec, result: Blob, thumb: string, width: number, height: number) {
+  await savePage({ ...page, result, thumb, width, height });
+}
+
+export async function newDoc(name: string, extra: Partial<DocRec> = {}): Promise<DocRec> {
+  const now = Date.now();
+  const doc: DocRec = { id: newId(), name, createdAt: now, updatedAt: now, pageIds: [], ...extra };
+  await putDoc(doc);
+  return doc;
+}
+
+/** Puts a page at a new index inside its document. */
+export async function setPageOrder(doc: DocRec, pageIds: string[]) {
+  await putDoc({ ...doc, pageIds, updatedAt: Date.now() });
 }
