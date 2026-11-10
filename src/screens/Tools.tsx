@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import * as I from "../icons";
 import type { Mode } from "../lib/modes";
 import type { DocTool } from "./DocView";
@@ -96,12 +97,32 @@ export function Tools({ onCamera, onImages, onFiles, onDocTool, onPdfFile }: Pro
     e.target.value = "";
     if (list.length) then(list);
   };
+  const [cat, setCat] = useState(GROUPS[0].title);
+  const body = useRef<HTMLElement>(null);
+  const go = (t: string) => {
+    setCat(t);
+    body.current?.querySelector<HTMLElement>(`[data-cat="${t}"]`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  const onScroll = () => {
+    const el = body.current;
+    if (!el) return;
+    const top = el.getBoundingClientRect().top + 24;
+    let cur = GROUPS[0].title;
+    el.querySelectorAll<HTMLElement>("[data-cat]").forEach((s) => { if (s.getBoundingClientRect().top <= top) cur = s.dataset.cat!; });
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 4) cur = GROUPS[GROUPS.length - 1].title;
+    setCat(cur);
+  };
   return (
     <>
-      <header className="bar"><h1 className="bar-title">Tools</h1></header>
-      <main className="page">
+      <header className="bar"><h1 className="bar-title bar-big">Tools</h1></header>
+      <nav className="cat-tabs" aria-label="Tool groups">
         {GROUPS.map((g) => (
-          <section key={g.title} className="tool-group">
+          <button key={g.title} className={cat === g.title ? "on" : ""} aria-current={cat === g.title ? "true" : undefined} onClick={() => go(g.title)}>{g.title}</button>
+        ))}
+      </nav>
+      <main className="page" ref={body} onScroll={onScroll}>
+        {GROUPS.map((g) => (
+          <section key={g.title} className="tool-group" data-cat={g.title}>
             <h2>{g.title}</h2>
             <div className="tool-grid">
               {g.items.map((it) => {

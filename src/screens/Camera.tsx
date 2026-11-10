@@ -45,6 +45,14 @@ interface Shot { blob: Blob; url: string; stamp?: string[] }
  * not available (no permission, old WebView) the shutter opens the phone's
  * own camera app instead.
  */
+/** Modes that open on a short explainer with one Capture button. */
+const INTRO: Partial<Record<Mode, string>> = {
+  mega: "For pages too long for one photo. Take it in parts from the top down and Waraqa joins them into one long page.",
+  timestamp: "Every photo gets the date and time written on it. Add the place from the menu if you need it.",
+  book: "Photograph both open pages at once. Waraqa splits them at the spine. Auto capture takes the next one when you turn the page.",
+};
+const hasIntro = (m: Mode) => m === "idcard" || m === "formula" || !!INTRO[m];
+
 export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify, onClose, onShots, onAllTools, onDocTool }: Props) {
   const [mode, setMode] = useState<Mode>(startMode);
   const [batch, setBatch] = useState(false);
@@ -58,7 +66,7 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
   const [features, setFeatures] = useState(false);
   const [scanSet, setScanSet] = useState(false);
   const [history, setHistory] = useState<CodeItem[] | null>(null);
-  const [intro, setIntro] = useState(startMode === "idcard" || startMode === "formula");
+  const [intro, setIntro] = useState(hasIntro(startMode));
   const [preset, setPreset] = useState<IdPreset>("general");
   const [watermark, setWatermark] = useState("");
   const [idPaper, setIdPaper] = useState<"a4" | "letter">("a4");
@@ -268,7 +276,7 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
     setCode(null);
     setAuto(false);
     setFeatures(false);
-    setIntro(m === "idcard" || m === "formula");
+    setIntro(hasIntro(m));
   };
 
   const prompt =
@@ -293,7 +301,6 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
           </button>
           <button className={"cam-btn cam-hd" + (prefs.hd ? " on" : "")} onClick={() => setPrefs({ hd: !prefs.hd })} aria-pressed={prefs.hd} aria-label="High resolution">HD</button>
           <button className="cam-btn" onClick={() => setHelp(true)} aria-label="How this mode works"><I.Help /></button>
-          <button className="cam-btn" onClick={() => setFeatures(true)} aria-label="All features"><I.Apps /></button>
         </div>
         <button className="cam-btn" onClick={() => setMenu(true)} aria-label="Settings"><I.Dots /></button>
       </header>
@@ -369,6 +376,13 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
             <button className="btn btn-primary wide" onClick={() => setIntro(false)}>Capture</button>
           </div>
         )}
+        {intro && INTRO[mode] && (
+          <div className="cam-intro cam-intro-plain" role="dialog" aria-label={info.label}>
+            <h3>{info.label}</h3>
+            <p>{INTRO[mode]}</p>
+            <button className="btn btn-primary wide" onClick={() => setIntro(false)}>Capture</button>
+          </div>
+        )}
         {live === "on" && mode === "idphoto" && <div className="guide guide-face" aria-hidden="true" />}
         {live === "on" && mode === "book" && <div className="guide guide-spine" aria-hidden="true" />}
         {live === "on" && mode === "code" && <div className="guide guide-code" aria-hidden="true" />}
@@ -376,6 +390,14 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
         {flashFx && <div className="cam-flash" aria-hidden="true" />}
       </div>
 
+      <div className="cam-pill">
+        {!intro && shots.length === 0 && info.shots === "many" && mode !== "mega" && !auto && (
+          <div className="cam-seg" role="radiogroup" aria-label="Pages">
+            <button role="radio" aria-checked={!batch} className={!batch ? "on" : ""} onClick={() => setBatch(false)}>Single</button>
+            <button role="radio" aria-checked={batch} className={batch ? "on" : ""} onClick={() => setBatch(true)}>Batch</button>
+          </div>
+        )}
+      </div>
       <div className="cam-modes" ref={strip} role="tablist" aria-label="Scan mode">
         {MODES.map((m) => (
           <button key={m.id} role="tab" aria-selected={m.id === mode} className={"mode" + (m.id === mode ? " on" : "")} onClick={() => pick(m.id)}>
@@ -391,15 +413,14 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
               <img src={shots[shots.length - 1].url} alt="" />
               <span className="cam-count mono">{shots.length}</span>
             </button>
-          ) : !prefs.showImport ? null : (
-            <label className="cam-btn cam-import" htmlFor="cam-import" aria-label="Import images">
-              <input id="cam-import" className="file-input" type="file" accept="image/*" multiple={need !== 1} onChange={fromFiles} />
-              <I.Images />
-              <span>Import</span>
-            </label>
+          ) : (
+            <button className="cam-btn cam-import" onClick={() => setFeatures(true)}>
+              <I.Apps />
+              <span>All Features</span>
+            </button>
           )}
         </div>
-        {mode !== "code" ? (
+        {intro ? <span /> : mode !== "code" ? (
           live === "off" ? (
             <label className="shutter" htmlFor="cam-native-2" aria-label="Take photo">
               <input id="cam-native-2" className="file-input" type="file" accept="image/*" capture="environment" onChange={fromFiles} />
@@ -413,11 +434,12 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
             <button className="btn btn-primary cam-done" onClick={() => finish(shots)}>
               <I.Check /> Done
             </button>
-          ) : info.shots === "many" && mode !== "mega" && !auto ? (
-            <div className="cam-seg" role="radiogroup" aria-label="Pages">
-              <button role="radio" aria-checked={!batch} className={!batch ? "on" : ""} onClick={() => setBatch(false)}>Single</button>
-              <button role="radio" aria-checked={batch} className={batch ? "on" : ""} onClick={() => setBatch(true)}>Batch</button>
-            </div>
+          ) : shots.length === 0 && prefs.showImport && !intro ? (
+            <label className="cam-btn cam-import" htmlFor="cam-import" aria-label="Import images">
+              <input id="cam-import" className="file-input" type="file" accept="image/*" multiple={need !== 1} onChange={fromFiles} />
+              <I.Images />
+              <span>Import Images</span>
+            </label>
           ) : null}
         </div>
       </footer>
