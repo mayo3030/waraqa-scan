@@ -42,6 +42,19 @@ jobs:
       - name: Install
         run: npm ci
 
+      # No .apk is built or published unless the unit tests pass.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Make the test images
+        run: |
+          python -m pip install --quiet numpy pillow
+          npm run fixtures
+
+      - name: Run the unit tests
+        run: npm test
+
       - name: Build the web app
         run: npm run build
         env:
