@@ -6,6 +6,7 @@ import { UpdateButton } from "./UpdateButton";
 import { canUpdate } from "../lib/updater";
 import { memoryOnly } from "../lib/store";
 import { CameraSettings, ScanSettings } from "./ScanSettings";
+import { AiKeys } from "./AiKeys";
 
 interface Props { prefs: Prefs; setPrefs(p: Partial<Prefs>): void; docCount: number }
 
@@ -55,13 +56,18 @@ export function Settings({ prefs, setPrefs, docCount }: Props) {
         </section>
 
         <section className="set-group">
+          <h2>AI keys</h2>
+          <AiKeys />
+        </section>
+
+        <section className="set-group">
           <h2>Storage</h2>
           <p className="muted">
             {docCount} {docCount === 1 ? "document" : "documents"}
             {space && space.used > 0 ? `, using ${mb(space.used)} on this phone` : ""}.
           </p>
           {memoryOnly && <p className="note">This view cannot keep files, so scans are lost when it closes.</p>}
-          <p className="muted small">Your scans, signatures and read text stay on this phone. Nothing is uploaded, unless you choose Open in Google Translate.</p>
+          <p className="muted small">Your scans, signatures and read text stay on this phone. Nothing is uploaded, unless you choose Open in Google Translate or one of the AI features.</p>
         </section>
       </main>
     </>

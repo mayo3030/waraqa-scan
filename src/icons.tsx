@@ -70,6 +70,7 @@ export const History = ({ size = 20 }: I) => svg(size, <g {...P}><path d="M4.5 1
 export const Gear = ({ size = 20 }: I) => svg(size, <g {...P}><circle cx="12" cy="12" r="3" /><path d="M12 3.5v2.3M12 18.2v2.3M3.5 12h2.3M18.2 12h2.3M6 6l1.6 1.6M16.4 16.4 18 18M6 18l1.6-1.6M16.4 7.6 18 6" /></g>);
 export const Apps = ({ size = 20 }: I) => svg(size, <g {...P}><circle cx="6.5" cy="6.5" r="2.2" /><circle cx="17.5" cy="6.5" r="2.2" /><circle cx="6.5" cy="17.5" r="2.2" /><circle cx="17.5" cy="17.5" r="2.2" /></g>);
 export const Level = ({ size = 20 }: I) => svg(size, <g {...P}><rect x="3" y="8.5" width="18" height="7" rx="3.5" /><circle cx="12" cy="12" r="1.8" /><path d="M9 8.5v7M15 8.5v7" /></g>);
+export const Sparkle = ({ size = 20 }: I) => svg(size, <g {...P}><path d="M11 3.5c.6 3.9 2.6 5.9 6.5 6.5-3.9.6-5.9 2.6-6.5 6.5-.6-3.9-2.6-5.9-6.5-6.5 3.9-.6 5.9-2.6 6.5-6.5zM18 14.5c.3 1.8 1.2 2.7 3 3-1.8.3-2.7 1.2-3 3-.3-1.8-1.2-2.7-3-3 1.8-.3 2.7-1.2 3-3z" /></g>);
 export const Sort = ({ size = 20 }: I) => svg(size, <g {...P}><path d="M7 4v16M4 7l3-3 3 3M17 20V4M14 17l3 3 3-3" /></g>);
 
 /** The Waraqa mark: a page with a folded corner and a scan line. */

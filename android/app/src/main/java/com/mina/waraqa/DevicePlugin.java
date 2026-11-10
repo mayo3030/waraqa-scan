@@ -2,6 +2,16 @@ package com.mina.waraqa;
 
 import android.content.ContentResolver;
 import android.content.ContentValues;
+import android.content.SharedPreferences;
+import android.security.keystore.KeyGenParameterSpec;
+import android.security.keystore.KeyProperties;
+import android.util.Base64;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyStore;
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
 import android.content.pm.ActivityInfo;
 import android.net.Uri;
 import android.os.Build;
@@ -16,7 +26,10 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-/** Screen orientation lock and saving photos to the phone's gallery. */
+/**
+ * Screen orientation lock, saving photos to the phone's gallery, and API keys
+ * kept encrypted with a key that never leaves the Android Keystore.
+ */
 @CapacitorPlugin(name = "Device")
 public class DevicePlugin extends Plugin {
 
@@ -65,5 +78,66 @@ public class DevicePlugin extends Plugin {
         JSObject r = new JSObject();
         r.put("uri", out.toString());
         call.resolve(r);
+    }
+
+    private static final String ALIAS = "waraqa-secrets";
+    private static final String PREFS = "waraqa_secrets";
+
+    private SecretKey secretKey() throws Exception {
+        KeyStore ks = KeyStore.getInstance("AndroidKeyStore");
+        ks.load(null);
+        if (ks.containsAlias(ALIAS)) return ((KeyStore.SecretKeyEntry) ks.getEntry(ALIAS, null)).getSecretKey();
+        KeyGenerator kg = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+        kg.init(new KeyGenParameterSpec.Builder(ALIAS, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setKeySize(256)
+            .build());
+        return kg.generateKey();
+    }
+
+    private SharedPreferences store() {
+        return getContext().getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE);
+    }
+
+    @PluginMethod
+    public void setSecret(PluginCall call) {
+        String name = call.getString("name");
+        String value = call.getString("value");
+        if (name == null || value == null) { call.reject("Missing name or value"); return; }
+        try {
+            Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+            c.init(Cipher.ENCRYPT_MODE, secretKey());
+            byte[] ct = c.doFinal(value.getBytes(StandardCharsets.UTF_8));
+            String packed = Base64.encodeToString(c.getIV(), Base64.NO_WRAP) + ":" + Base64.encodeToString(ct, Base64.NO_WRAP);
+            store().edit().putString(name, packed).apply();
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Could not save the key");
+        }
+    }
+
+    @PluginMethod
+    public void getSecret(PluginCall call) {
+        String name = call.getString("name");
+        String packed = name == null ? null : store().getString(name, null);
+        JSObject r = new JSObject();
+        if (packed == null) { r.put("value", null); call.resolve(r); return; }
+        try {
+            String[] parts = packed.split(":", 2);
+            Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
+            c.init(Cipher.DECRYPT_MODE, secretKey(), new GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP)));
+            r.put("value", new String(c.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)), StandardCharsets.UTF_8));
+            call.resolve(r);
+        } catch (Exception e) {
+            call.reject("Could not read the key");
+        }
+    }
+
+    @PluginMethod
+    public void removeSecret(PluginCall call) {
+        String name = call.getString("name");
+        if (name != null) store().edit().remove(name).apply();
+        call.resolve();
     }
 }

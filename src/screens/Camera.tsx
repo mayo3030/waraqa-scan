@@ -63,6 +63,7 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
   const [watermark, setWatermark] = useState("");
   const [idPaper, setIdPaper] = useState<"a4" | "letter">("a4");
   const [restoreKind, setRestoreKind] = useState<"restore" | "colorize">("restore");
+  const [aiOn, setAiOn] = useState(false);
   const [auto, setAuto] = useState(false); // book: take a photo after each page turn
   const [tilt, setTilt] = useState<{ x: number; y: number } | null>(null);
   const video = useRef<HTMLVideoElement>(null);
@@ -73,7 +74,7 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
   const info = modeInfo(mode);
   const need = mode === "idcard" ? idPreset(preset).sides : info.shots === "two" ? 2 : info.shots === "one" ? 1 : 0; // 0: any number
   const multi = need === 2 || mode === "mega" || (info.shots === "many" && (batch || auto));
-  const opts: ModeOpts = { id: preset, watermark: watermark.trim() ? `For ${watermark.trim()} use only` : undefined, paper: idPaper, restore: restoreKind };
+  const opts: ModeOpts = { id: preset, watermark: watermark.trim() ? `For ${watermark.trim()} use only` : undefined, paper: idPaper, restore: restoreKind, ai: aiOn };
 
   // Start (and restart on HD change) the back camera.
   useEffect(() => {
@@ -201,7 +202,7 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
   const finish = useCallback((list: Shot[]) => {
     if (!list.length) return;
     onShots({ blobs: list.map((s) => s.blob), mode, stamps: mode === "timestamp" ? list.map((s) => s.stamp ?? []) : undefined, opts });
-  }, [mode, onShots, opts.id, opts.watermark, opts.paper, opts.restore]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mode, onShots, opts.id, opts.watermark, opts.paper, opts.restore, opts.ai]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addShots = (blobs: Blob[]) => {
     const made = blobs.map((blob) => ({ blob, url: URL.createObjectURL(blob), stamp: stampNow() }));
@@ -329,6 +330,7 @@ export function CameraScreen({ mode: startMode, adding, prefs, setPrefs, notify,
           <div className="cam-sub seg" role="radiogroup" aria-label="Restore or colorize">
             <button role="radio" aria-checked={restoreKind === "restore"} className={restoreKind === "restore" ? "on" : ""} onClick={() => setRestoreKind("restore")}>Restore</button>
             <button role="radio" aria-checked={restoreKind === "colorize"} className={restoreKind === "colorize" ? "on" : ""} onClick={() => setRestoreKind("colorize")}>Colorize</button>
+            <button role="switch" aria-checked={aiOn} className={aiOn ? "on" : ""} onClick={() => { setAiOn(!aiOn); if (!aiOn) notify({ text: "AI uses your Replicate key and sends the photo online" }); }}>AI</button>
           </div>
         )}
         {mode === "book" && live === "on" && (

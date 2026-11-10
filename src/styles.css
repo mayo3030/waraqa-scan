@@ -641,3 +641,15 @@ label.btn:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; 
 }
 .card-page { display: grid; gap: 12px; }
 .card-preview { width: min(100%, 360px); height: auto; justify-self: center; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,0.18); }
+
+/* 1.3: AI keys and chat */
+.key-row small { font-size: 12.5px; }
+.key-saved, .key-edit { display: flex; align-items: center; gap: 8px; }
+.key-saved code { flex: 1; font-size: 14px; letter-spacing: 1px; }
+.key-edit .field { flex: 1; min-width: 0; }
+.chat-log { display: grid; gap: 8px; max-height: 46vh; overflow-y: auto; padding: 4px 0; }
+.chat-msg { margin: 0; padding: 9px 12px; border-radius: 14px; max-width: 86%; white-space: pre-wrap; line-height: 1.45; font-size: 14.5px; }
+.chat-user { justify-self: end; background: var(--accent); color: var(--accent-ink); border-bottom-right-radius: 4px; }
+.chat-assistant { justify-self: start; background: var(--bg); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.chat-ask { display: flex; gap: 8px; margin-top: 8px; }
+.chat-ask .field { flex: 1; min-width: 0; }

@@ -37,6 +37,14 @@ Everything stays on the device (IndexedDB). There is no server.
 
 Not included because they need an online service: photo translation, formula solving, AI chat, cloud sync.
 
+## AI features (your own keys)
+
+Me > AI keys has two fields: an OpenRouter API key and a Replicate API token. The app stores them encrypted on the phone (AES-GCM with a key held by the Android Keystore). They are never part of the source, the build or the APK, and the screen only ever shows the last 4 characters.
+
+- **Formula to LaTeX** and **AI Chat** (ask about a document) call OpenRouter with `anthropic/claude-haiku-5.5`.
+- **AI Restore** (CodeFormer) and **AI Colorize** (DDColor) call Replicate. The app reads each model's newest version and inputs from Replicate before the call.
+- Without a key the feature says where to add it. Each use sends the chosen page to that service and spends your credit there.
+
 ## Features added in 1.2
 
 - **All features** button on the camera: every mode, grouped (scan, convert, doc tools, enhance, screens, more).

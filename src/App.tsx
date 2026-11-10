@@ -184,7 +184,7 @@ export function App() {
       try {
         const after = await postProcess(mode, docId, fresh, { stamps, paper: prefs.paper === "a4" ? "a4" : "letter", opts }, setBusy);
         bump();
-        notify({ text: "Saved" });
+        notify(after.note ? { text: after.note, tone: "error" } : { text: "Saved" });
         if (after.erase) void pageEditor("erase", after.open, after.erase);
         else openDoc(after.open, after.tool);
       } catch {
@@ -461,6 +461,7 @@ const TOOL_NAMES: Partial<Record<DocTool, string>> = {
   watermark: "Watermark", erase: "Smart erase", marks: "Erase marks", restore: "Restore photo", merge: "Merge files",
   extract: "Extract pages", reorder: "Reorder pages", lock: "Lock with password", compress: "Compress", print: "Print",
   colorize: "Colorize", translate: "Translate", questions: "Incorrect Question",
+  latex: "Formula to LaTeX", chat: "AI Chat", "ai-restore": "AI Restore", "ai-colorize": "AI Colorize",
 };
 
 function DocPicker({ rev, tool, onPick, onClose }: { rev: number; tool: DocTool; onPick(id: string): void; onClose(): void }) {

@@ -7,6 +7,9 @@ import { addPages, deletePage, getDoc, getPages, putDoc, type DocRec } from "./s
 import { stampImage, watermarkImage } from "./stamp";
 import { CARD_MM } from "./imaging";
 import { pageFromImage } from "./pagemake";
+import { aiPhoto } from "./ai";
+import { decodeImageElement } from "./canvasimg";
+import { finishCanvas } from "./stamp";
 import { replaceResult } from "./store";
 import { rasterThumb, rasterToBlob } from "./io";
 
@@ -30,6 +33,7 @@ export interface ModeOpts {
   id?: IdPreset;
   watermark?: string; // "For ___ use only" text for ID sheets
   restore?: "restore" | "colorize";
+  ai?: boolean; // Restore Photo: use the online AI models (Replicate)
   paper?: "a4" | "letter"; // ID sheet paper
 }
 
@@ -72,7 +76,7 @@ export const OWN_SCREEN: Mode[] = ["idphoto", "count", "greeting"];
 export const modeInfo = (m: Mode = "scan") => MODES.find((x) => x.id === m) ?? MODES[0];
 
 /** Where the app goes after a mode finished saving. */
-export type After = { open: string; tool?: "text" | "word" | "excel" | "translate" | "questions"; erase?: string };
+export type After = { open: string; tool?: "text" | "word" | "excel" | "translate" | "questions" | "latex"; erase?: string; note?: string };
 
 /**
  * Runs after the last photo of a session is saved. `fresh` lists the page ids
@@ -91,12 +95,13 @@ export async function postProcess(
   const all = await getPages(doc);
   const mine = all.filter((p) => fresh.includes(p.id));
   await tag(doc, info.tag);
+  let note: string | undefined;
 
   switch (mode) {
     case "ocr": return { open: docId, tool: "text" };
     case "word": return { open: docId, tool: "word" };
     case "excel": return { open: docId, tool: "excel" };
-    case "formula": return { open: docId, tool: "word" };
+    case "formula": return { open: docId, tool: "latex" };
     case "translate": return { open: docId, tool: "translate" };
     case "question": return { open: docId, tool: "questions" };
     case "erase": return { open: docId, erase: mine[0]?.id };
@@ -119,6 +124,18 @@ export async function postProcess(
     }
     case "restore": {
       const colorize = extra.opts?.restore === "colorize";
+      if (extra.opts?.ai) {
+        try {
+          for (const p of mine) {
+            const out = await aiPhoto(colorize ? "colorize" : "restore", p.result, progress);
+            const img = await finishCanvas(await canvasOf(out), 0.92);
+            await replaceResult(p, img.blob, img.thumb, img.width, img.height);
+          }
+          break;
+        } catch (e) {
+          note = (e instanceof Error ? e.message : "The AI model did not finish.") + " Used the on-phone version instead.";
+        }
+      }
       progress(colorize ? "Adding color" : "Restoring the photo");
       for (const p of mine) {
         const r = await runAsync({ op: "tool", tool: colorize ? "colorize" : "restore", src: await blobToRaster(p.result, 2400) }, 90000);
@@ -157,7 +174,15 @@ export async function postProcess(
       break;
     }
   }
-  return { open: docId };
+  return { open: docId, note };
+}
+
+async function canvasOf(b: Blob): Promise<HTMLCanvasElement> {
+  const el = await decodeImageElement(b);
+  const c = document.createElement("canvas");
+  c.width = el.naturalWidth; c.height = el.naturalHeight;
+  c.getContext("2d")!.drawImage(el, 0, 0);
+  return c;
 }
 
 async function tag(doc: DocRec, t?: string) {

@@ -57,6 +57,7 @@ export const FEATURE_GROUPS: { title: string; items: Feature[] }[] = [
     items: [
       { kind: "cam", mode: "count", label: "CountCam", icon: <I.Count size={24} /> },
       { kind: "cam", mode: "greeting", label: "Greeting Card", icon: <I.Card size={24} /> },
+      { kind: "doc", tool: "chat", label: "AI Chat", icon: <I.Sparkle size={24} /> },
     ],
   },
 ];

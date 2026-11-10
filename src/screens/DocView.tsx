@@ -9,7 +9,9 @@ import { buildPdf, PAPER, type PaperSize, type PdfOptions } from "../lib/pdf";
 import { Capacitor } from "@capacitor/core";
 import { canShareFiles, safeName, saveFile, saveMany, shareNative } from "../lib/save";
 import { OCR_LANGS, recognize, recognizeWithClaude, type OcrLang } from "../lib/ocr";
-import { toDocx, toLongImage, toPptx, toReviewDocx, toXlsx } from "../lib/exporters";
+import { toDocx, toLatexDocx, toLongImage, toPptx, toReviewDocx, toXlsx } from "../lib/exporters";
+import { aiPhoto, docContext, formulaToLatex, MissingKey, openRouterChat, type ChatMsg } from "../lib/ai";
+import { getSecret } from "../lib/secrets";
 import { canTranslateOnDevice, onlineTranslateUrl, TARGETS, targetLabel, translateOnDevice } from "../lib/translate";
 import { splitQuestions } from "../lib/questions";
 import { printPdf } from "../lib/print";
@@ -21,7 +23,9 @@ import { useDocs } from "./useDocs";
 export type DocTool =
   | "text" | "word" | "excel" | "pptx" | "pdf" | "long" | "images" | "sign" | "watermark" | "erase"
   | "marks" | "restore" | "colorize" | "merge" | "extract" | "reorder" | "lock" | "compress" | "print" | "tags"
-  | "translate" | "questions";
+  | "translate" | "questions" | "latex" | "chat" | "ai-restore" | "ai-colorize";
+
+type PageJob = "sign" | "erase" | "marks" | "restore" | "colorize" | "ai-restore" | "ai-colorize";
 
 interface Props {
   id: string;
@@ -51,7 +55,9 @@ type Sheet =
   | { kind: "text" }
   | { kind: "convert"; to: Convert }
   | { kind: "tools" }
-  | { kind: "pick"; then: "sign" | "erase" | "marks" | "restore" | "colorize" }
+  | { kind: "pick"; then: PageJob }
+  | { kind: "latex" }
+  | { kind: "chat" }
   | { kind: "translate" }
   | { kind: "questions" }
   | { kind: "extract" }
@@ -84,6 +90,11 @@ export function DocView(props: Props) {
   const [picks, setPicks] = useState<Set<number>>(new Set());
   const [translated, setTranslated] = useState<string | null>(null);
   const [wrong, setWrong] = useState<Set<number>>(new Set());
+  const [latex, setLatex] = useState<string | null>(null);
+  const [chat, setChat] = useState<{ role: "user" | "assistant"; text: string }[]>([]);
+  const [ask, setAsk] = useState("");
+  const chatCtx = useRef<ChatMsg[] | null>(null);
+  const chatEnd = useRef<HTMLDivElement>(null);
   const started = useRef(false);
 
   const load = async () => {
@@ -107,6 +118,15 @@ export function DocView(props: Props) {
   if (!doc) return <main className="page"><p className="muted">Opening…</p></main>;
 
   function openTool(t: DocTool) {
+    const key = t === "latex" || t === "chat" ? "openrouter" : t === "ai-restore" || t === "ai-colorize" ? "replicate" : null;
+    if (key) {
+      void getSecret(key).then((k) => k ? toolNow(t) : notify({ text: new MissingKey(key).message, tone: "error" }));
+      return;
+    }
+    toolNow(t);
+  }
+
+  function toolNow(t: DocTool) {
     switch (t) {
       case "text":
         setSheet({ kind: "text" });
@@ -129,7 +149,9 @@ export function DocView(props: Props) {
         setSheet({ kind: "questions" });
         if (!textPages(text, pages.length).some((x) => x.trim())) void runOcr();
         return;
-      case "sign": case "erase": case "marks": case "restore": case "colorize":
+      case "latex": setLatex(null); return setSheet({ kind: "latex" });
+      case "chat": return setSheet({ kind: "chat" });
+      case "sign": case "erase": case "marks": case "restore": case "colorize": case "ai-restore": case "ai-colorize":
         if (pages.length === 1) return void pickedPage(t, 0);
         return setSheet({ kind: "pick", then: t });
       case "merge": return setSheet({ kind: "merge" });
@@ -311,6 +333,56 @@ export function DocView(props: Props) {
     } catch (e) { fail(e, "The review sheet"); }
   };
 
+  const readLatex = async () => {
+    setWorking("Reading the formulas");
+    try {
+      const parts: string[] = [];
+      for (let i = 0; i < pages.length; i++) {
+        if (pages.length > 1) setWorking(`Reading formulas on page ${i + 1} of ${pages.length}`);
+        const t = await formulaToLatex(pages[i].result);
+        if (t) parts.push(t);
+      }
+      setWorking(null);
+      setLatex(parts.join("\n\n"));
+      if (!parts.length) notify({ text: "No formulas were found", tone: "error" });
+    } catch (e) { fail(e, "Reading the formulas"); }
+  };
+
+  const latexWord = async () => {
+    if (!latex) return;
+    setWorking("Making the Word file");
+    try {
+      const blob = await toLatexDocx(doc.name, latex, pages);
+      setWorking(null);
+      report(await saveFile(`${safeName(doc.name)} formulas.docx`, blob), "Word file");
+    } catch (e) { fail(e, "The file"); }
+  };
+
+  const sendChat = async () => {
+    const q = ask.trim();
+    if (!q || working) return;
+    const before = chat;
+    setChat([...before, { role: "user", text: q }]);
+    setAsk("");
+    setWorking("Thinking");
+    try {
+      if (!chatCtx.current) {
+        let t = textPages(text, pages.length).join("\n\n").trim();
+        if (!t) { try { t = (await ensureText()).join("\n\n"); } catch { /* images only */ } }
+        chatCtx.current = await docContext(doc.name, t, pages.map((p) => p.result));
+      }
+      const msgs: ChatMsg[] = [...chatCtx.current, ...before.map((m) => ({ role: m.role, content: m.text })), { role: "user", content: q }];
+      const a = await openRouterChat(msgs);
+      setChat((c) => [...c, { role: "assistant", text: a }]);
+      setWorking(null);
+      setTimeout(() => chatEnd.current?.scrollIntoView({ behavior: "smooth" }), 50);
+    } catch (e) {
+      setChat(before);
+      setAsk(q);
+      fail(e, "AI Chat");
+    }
+  };
+
   const saveText = async () => {
     if (text !== (doc.text ?? "")) await save({ ...doc, text });
   };
@@ -325,11 +397,24 @@ export function DocView(props: Props) {
     }
   };
 
-  async function pickedPage(then: "sign" | "erase" | "marks" | "restore" | "colorize", i: number) {
+  async function pickedPage(then: PageJob, i: number) {
     const p = pages[i];
     if (then === "sign") return onSign(p.id);
     if (then === "erase") return onErase(p.id);
     setSheet(null);
+    if (then === "ai-restore" || then === "ai-colorize") {
+      setWorking(then === "ai-restore" ? "AI is restoring the photo" : "AI is adding color");
+      try {
+        const out = await aiPhoto(then === "ai-restore" ? "restore" : "colorize", p.result, (s) => setWorking(s));
+        const r = await blobToRaster(out, 4000);
+        await replaceResult(p, await rasterToBlob(r, 0.92), rasterThumb(r), r.width, r.height);
+        setWorking(null);
+        notify({ text: "Page updated. Edit brings back the original." });
+        await load();
+        onChanged();
+      } catch (e) { fail(e, "The AI photo"); }
+      return;
+    }
     setWorking(then === "marks" ? "Erasing pen marks" : then === "colorize" ? "Adding color" : "Restoring the photo");
     try {
       const r = await runAsync({ op: "tool", tool: then === "marks" ? "eraseMarks" : then === "colorize" ? "colorize" : "restore", src: await blobToRaster(p.result, 3000) }, 90000);
@@ -414,6 +499,10 @@ export function DocView(props: Props) {
     { t: "restore", label: "Restore Photo", icon: <I.Restore /> },
     { t: "colorize", label: "Colorize", icon: <I.Drop /> },
     { t: "translate", label: "Translate", icon: <I.Translate /> },
+    { t: "latex", label: "Formula to LaTeX", icon: <I.Formula /> },
+    { t: "chat", label: "AI Chat", icon: <I.Sparkle /> },
+    { t: "ai-restore", label: "AI Restore", icon: <I.Sparkle /> },
+    { t: "ai-colorize", label: "AI Colorize", icon: <I.Sparkle /> },
     { t: "questions", label: "Incorrect Question", icon: <I.Question /> },
     { t: "merge", label: "Merge", icon: <I.Merge /> },
     { t: "extract", label: "Extract Pages", icon: <I.Cut /> },
@@ -592,6 +681,40 @@ export function DocView(props: Props) {
                     </div>
                   </>
                 )}
+              </>
+            )}
+
+            {sheet.kind === "latex" && (
+              <>
+                {head("Formula to LaTeX")}
+                <p className="muted small">Sends the page images to OpenRouter with your key. Crop the page to the formulas first for the best result.</p>
+                {latex === null ? busyBtn(pages.length > 1 ? `Read formulas on ${pages.length} pages` : "Read formulas", readLatex) : (
+                  <>
+                    <textarea className="ocr-text mono" dir="ltr" value={latex} onChange={(e) => setLatex(e.target.value)} />
+                    <div className="row-3">
+                      <button className="btn btn-quiet" onClick={async () => { try { await navigator.clipboard.writeText(latex); notify({ text: "LaTeX copied" }); } catch { notify({ text: "Copy is not available here", tone: "error" }); } }}><I.Copy /> Copy</button>
+                      <button className="btn btn-quiet" onClick={latexWord} disabled={!!working}><I.Word size={18} /> Word</button>
+                      <button className="btn btn-quiet" onClick={readLatex} disabled={!!working}><I.Refresh size={18} /> Again</button>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {sheet.kind === "chat" && (
+              <>
+                {head("AI Chat")}
+                <p className="muted small">Asks about this document. Its text and first pages go to OpenRouter with your key.</p>
+                <div className="chat-log" aria-live="polite">
+                  {!chat.length && <p className="muted">Try “Summarize this”, “What is the due date?” or “Translate the second paragraph”.</p>}
+                  {chat.map((m, i) => <p key={i} className={"chat-msg chat-" + m.role} dir="auto">{m.text}</p>)}
+                  {working && <p className="chat-msg chat-assistant muted">{working}…</p>}
+                  <div ref={chatEnd} />
+                </div>
+                <form className="chat-ask" onSubmit={(e) => { e.preventDefault(); void sendChat(); }}>
+                  <input className="field" dir="auto" placeholder="Ask about this document" value={ask} onChange={(e) => setAsk(e.target.value)} />
+                  <button className="btn btn-primary" type="submit" disabled={!ask.trim() || !!working}>Send</button>
+                </form>
               </>
             )}
 

@@ -66,6 +66,9 @@ const GROUPS: { title: string; items: Item[] }[] = [
       { kind: "doc", tool: "marks", label: "Erase Marks", icon: <I.Wand /> },
       { kind: "doc", tool: "restore", label: "Restore Photo", icon: <I.Restore /> },
       { kind: "doc", tool: "colorize", label: "Colorize", icon: <I.Drop /> },
+      { kind: "doc", tool: "ai-restore", label: "AI Restore", icon: <I.Sparkle /> },
+      { kind: "doc", tool: "ai-colorize", label: "AI Colorize", icon: <I.Sparkle /> },
+      { kind: "doc", tool: "latex", label: "Formula to LaTeX", icon: <I.Formula /> },
       { kind: "doc", tool: "translate", label: "Translate", icon: <I.Translate /> },
       { kind: "doc", tool: "merge", label: "Merge Files", icon: <I.Merge /> },
       { kind: "doc", tool: "extract", label: "Extract Pages", icon: <I.Cut /> },
@@ -81,6 +84,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
       { kind: "cam", mode: "code", label: "Scan Code", icon: <I.Qr /> },
       { kind: "cam", mode: "count", label: "CountCam", icon: <I.Count /> },
       { kind: "cam", mode: "greeting", label: "Greeting Card", icon: <I.Card /> },
+      { kind: "doc", tool: "chat", label: "AI Chat", icon: <I.Sparkle /> },
     ],
   },
 ];
@@ -122,7 +126,7 @@ export function Tools({ onCamera, onImages, onFiles, onDocTool, onPdfFile }: Pro
             </div>
           </section>
         ))}
-        <p className="muted small">Everything here runs on your phone. Translate uses the phone's own translator where Android has one, otherwise it opens Google Translate when you tap it. Editable equations from formulas, AI photo repair and AI chat need an online service, so they are not in this version.</p>
+        <p className="muted small">Most tools run on your phone. Formula to LaTeX, AI Chat, AI Restore and AI Colorize go online with your own OpenRouter or Replicate key from Me, AI keys. Translate uses the phone's own translator where Android has one, otherwise it opens Google Translate when you tap it.</p>
       </main>
     </>
   );

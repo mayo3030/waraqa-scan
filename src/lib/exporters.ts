@@ -39,6 +39,28 @@ export async function toDocx(title: string, texts: string[], pages: PageRec[], w
   return d.Packer.toBlob(doc);
 }
 
+/** Word file with the formula pictures and their LaTeX, ready to convert to Word equations. */
+export async function toLatexDocx(title: string, latex: string, pages: PageRec[]): Promise<Blob> {
+  const d = await import("docx");
+  const children: InstanceType<typeof d.Paragraph>[] = [];
+  children.push(new d.Paragraph({ text: title, heading: d.HeadingLevel.HEADING_1 }));
+  children.push(new d.Paragraph({
+    children: [new d.TextRun({ text: "To make a line a Word equation: select it, press Alt and = together, pick LaTeX, then Convert.", italics: true, color: "5D6185" })],
+  }));
+  for (const p of pages) {
+    const img = await exportImage(p, { maxSide: 1400, quality: 0.85 });
+    const bytes = Uint8Array.from(atob(img.data.split(",")[1]), (c) => c.charCodeAt(0));
+    const w = 560, h = Math.round((img.height * w) / img.width);
+    children.push(new d.Paragraph({ children: [new d.ImageRun({ type: "jpg", data: bytes, transformation: { width: w, height: h } })] }));
+  }
+  for (const line of latex.split(/\n/)) {
+    if (!line.trim()) continue;
+    children.push(new d.Paragraph({ spacing: { after: 120 }, children: [new d.TextRun({ text: line.trim(), font: "Cambria Math" })] }));
+  }
+  const doc = new d.Document({ creator: "Waraqa Scan", title, sections: [{ children }] });
+  return d.Packer.toBlob(doc);
+}
+
 /** Review sheet for Incorrect Question: each question with space for the right answer. */
 export async function toReviewDocx(title: string, questions: string[]): Promise<Blob> {
   const d = await import("docx");
